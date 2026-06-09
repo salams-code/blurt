@@ -1,7 +1,22 @@
 # 02 — Keyboard hook fires and swallows the AltGr trigger character
 
-Status: ready-for-human
+Status: ready-for-human (core + adapter implemented; live hook check pending)
 Type: HITL
+
+## Implementation note (handoff)
+
+Headless decision logic lives in `Blurt.Core.TriggerResolver` and is fully
+unit-tested (8 cases: trigger down/up, swallow, AltGr-released-first, the three
+bindings, right-Alt and non-trigger pass-through). The Win32 plumbing is a thin
+adapter `Blurt.App.KeyboardHook` (`WH_KEYBOARD_LL` → resolver → swallow), wired
+into the tray with a visible down/up signal (icon swap + balloon).
+
+Remaining = the manual check below, to run from the native Windows folder:
+1. Run `Blurt.exe`, focus Notepad.
+2. Hold `AltGr + ,` → no comma appears; tray shows "Fix (down)". Repeat for
+   `AltGr + .` (English) and `AltGr + -` (FlexSlot).
+3. Type letters and `AltGr + Q` (=`@`) → these appear normally (pass-through).
+4. Tray → Exit, then `AltGr + ,` types a comma again → hook uninstalled cleanly.
 
 ## Parent
 
