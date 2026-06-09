@@ -1,6 +1,13 @@
 # Local database (runtime artifact)
 *.db
 
+# .NET build artifacts
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+*.user
+
 # OS files
 .DS_Store
 Thumbs.db

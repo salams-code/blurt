@@ -1,6 +1,6 @@
 # 01 — Solution skeleton + tray that runs
 
-Status: ready-for-human
+Status: done
 Type: HITL
 
 ## Parent
@@ -18,11 +18,11 @@ exit the app.
 
 ## Acceptance criteria
 
-- [ ] Solution builds with `dotnet build` on Windows (.NET 8) into three projects: app, core lib, tests.
-- [ ] Running the app shows a tray icon with at least an "Exit" menu item that terminates the process.
-- [ ] The app runs from a copied folder without installation or admin elevation.
-- [ ] The test project runs (even with a single trivial passing test) via `dotnet test`.
-- [ ] No source from the macOS `blitztext-app` is reused.
+- [x] Solution builds with `dotnet build` on Windows (.NET 8) into three projects: app, core lib, tests.
+- [x] Running the app shows a tray icon with at least an "Exit" menu item that terminates the process.
+- [x] The app runs from a copied folder without installation or admin elevation.
+- [x] The test project runs (even with a single trivial passing test) via `dotnet test`.
+- [x] No source from the macOS `blitztext-app` is reused.
 
 ## Blocked by
 

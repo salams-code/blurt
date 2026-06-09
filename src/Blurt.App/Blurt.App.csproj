@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <!-- Portable: the produced binary is Blurt.exe, runnable from any user folder. -->
+    <AssemblyName>Blurt</AssemblyName>
+    <RootNamespace>Blurt.App</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Blurt.Core\Blurt.Core.csproj" />
+  </ItemGroup>
+
+</Project>
