@@ -12,6 +12,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
 {
     private readonly NotifyIcon _trayIcon;
     private readonly KeyboardHook _keyboardHook;
+    private readonly TextInjector _textInjector;
 
     public TrayApplicationContext()
     {
@@ -26,6 +27,13 @@ internal sealed class TrayApplicationContext : ApplicationContext
             Visible = true,
             ContextMenuStrip = menu,
         };
+
+        // 300 ms gives the focused app time to consume the Ctrl+V before the
+        // user's original clipboard is put back (pasting is asynchronous).
+        _textInjector = new TextInjector(
+            new WinFormsClipboard(),
+            new SendInputPasteKeystroke(),
+            postPasteDelay: () => Task.Delay(TimeSpan.FromMilliseconds(300)));
 
         _keyboardHook = new KeyboardHook();
         _keyboardHook.TriggerObserved += OnTriggerObserved;
@@ -46,6 +54,15 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             _trayIcon.Icon = SystemIcons.Application;
             _trayIcon.Text = AppInfo.Name;
+
+            // Issue 03 manual check: Fix release injects a fixed string. The
+            // real dictation pipeline replaces this in issue 05. Fire-and-forget
+            // is fine here — the injector resumes on this (STA) UI thread and
+            // never throws past the paste seam.
+            if (trigger.Kind == TriggerKind.Fix)
+            {
+                _ = _textInjector.InjectAsync("hello from blurt");
+            }
         }
     }
 
