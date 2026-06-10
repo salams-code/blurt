@@ -1,7 +1,33 @@
 # 03 — Text injection at the cursor via clipboard
 
-Status: ready-for-human
+Status: ready-for-human (implemented; live paste check pending)
 Type: HITL
+
+## Implementation note (handoff)
+
+Headless orchestration lives in `Blurt.Core.TextInjector` and is fully
+unit-tested (4 cases: set-text + paste, restore only after the post-paste
+delay, paste failure leaves text on clipboard, snapshot failure still pastes).
+Seams: `IClipboard` (opaque snapshot/restore, preserves non-text formats) and
+`IPasteKeystroke`, plus an injectable post-paste delay so tests never sleep.
+Thin Win32 adapters in `Blurt.App`: `WinFormsClipboard` (detached `DataObject`
+copy of all formats, STA UI thread) and `SendInputPasteKeystroke` (`SendInput`
+Ctrl+V chord). Wired to the **Fix trigger key-up only** with the fixed string
+"hello from blurt" (300 ms restore delay); English/FlexSlot wiring belongs to
+a parallel issue.
+
+Remaining = the manual check below, to run from the native Windows folder:
+1. Copy something distinctive (a known sentence, or an image for the non-text
+   case) so the clipboard has prior contents.
+2. Run `Blurt.exe`, focus Notepad, tap `AltGr + ,` (Fix) and release →
+   "hello from blurt" appears at the caret.
+3. Repeat in a second app (e.g. a browser text field) → same text appears.
+4. Wait ~half a second, then paste manually (`Ctrl+V`) → the *original*
+   clipboard contents from step 1 come back (restore worked).
+5. Simulated paste failure: if the Ctrl+V cannot be delivered (e.g. target is
+   an elevated/admin window that blocks `SendInput`), nothing is restored —
+   "hello from blurt" stays on the clipboard, so a manual `Ctrl+V` still
+   produces it (no silent loss).
 
 ## Parent
 
