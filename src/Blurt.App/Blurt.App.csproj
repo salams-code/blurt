@@ -15,4 +15,10 @@
     <ProjectReference Include="..\Blurt.Core\Blurt.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="NAudio" Version="2.3.0" />
+    <PackageReference Include="Whisper.net" Version="1.9.1" />
+    <PackageReference Include="Whisper.net.Runtime" Version="1.9.1" />
+  </ItemGroup>
+
 </Project>
