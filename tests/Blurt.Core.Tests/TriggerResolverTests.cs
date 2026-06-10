@@ -64,6 +64,35 @@ public class TriggerResolverTests
     }
 
     [Fact]
+    public void Auto_repeat_down_of_held_trigger_key_is_swallowed_without_a_new_event()
+    {
+        var resolver = new TriggerResolver();
+
+        resolver.Process(new KeyInput(VkRMenu, KeyEdge.Down));
+        resolver.Process(new KeyInput(VkOemComma, KeyEdge.Down));
+
+        var repeat = resolver.Process(new KeyInput(VkOemComma, KeyEdge.Down)); // OS auto-repeat while held
+
+        Assert.True(repeat.Swallow);
+        Assert.Null(repeat.Trigger);
+    }
+
+    [Fact]
+    public void Auto_repeat_down_is_still_swallowed_after_right_alt_was_released_first()
+    {
+        var resolver = new TriggerResolver();
+
+        resolver.Process(new KeyInput(VkRMenu, KeyEdge.Down));
+        resolver.Process(new KeyInput(VkOemComma, KeyEdge.Down));
+        resolver.Process(new KeyInput(VkRMenu, KeyEdge.Up));   // user lets go of AltGr first
+
+        var repeat = resolver.Process(new KeyInput(VkOemComma, KeyEdge.Down)); // ',' must not leak
+
+        Assert.True(repeat.Swallow);
+        Assert.Null(repeat.Trigger);
+    }
+
+    [Fact]
     public void Right_alt_itself_passes_through()
     {
         var resolver = new TriggerResolver();

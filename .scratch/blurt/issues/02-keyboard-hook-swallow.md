@@ -1,6 +1,6 @@
 # 02 — Keyboard hook fires and swallows the AltGr trigger character
 
-Status: ready-for-human (core + adapter implemented; live hook check pending)
+Status: done
 Type: HITL
 
 ## Implementation note (handoff)
@@ -44,3 +44,18 @@ push-to-talk or tap-vs-hold). Candidate for ADR-0001.
 ## Blocked by
 
 - 01 — Solution skeleton + tray that runs
+
+## Comments
+
+**2026-06-10 (agent):** Live check surfaced a bug: holding a trigger spammed
+balloons. Cause: OS auto-repeat `KEYDOWN`s each produced a fresh trigger Down in
+`TriggerResolver`. Fixed via TDD — repeat downs of the held trigger key are now
+swallowed without a new event (exactly one Down per press, one Up per release),
+including after AltGr is released first (that path previously leaked the
+character). Two regression tests added; 10/10 green. The balloon itself is the
+intended interim signal; issue 06 replaces it.
+
+**2026-06-10 (user):** Live check passed — all three triggers swallow correctly,
+pass-through intact, no repeat spam. `AltGr + #` producing nothing is expected
+OS behavior (unbound Ctrl+Alt combo, not a Blurt binding); confirmed the spec
+defines exactly three hotkeys. Issue closed.

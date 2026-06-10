@@ -18,6 +18,7 @@ public sealed class TriggerResolver
     };
 
     private static readonly KeyDecision PassThrough = new(Swallow: false, Trigger: null);
+    private static readonly KeyDecision SwallowSilently = new(Swallow: true, Trigger: null);
 
     private bool _rightAltDown;
 
@@ -39,6 +40,15 @@ public sealed class TriggerResolver
         {
             _activeTrigger = null;
             return new KeyDecision(Swallow: true, new TriggerEvent(active.Kind, KeyEdge.Up));
+        }
+
+        // OS auto-repeat while the trigger key is held: keep swallowing, but
+        // a trigger fires exactly one Down (on press) and one Up (on release).
+        if (input.Edge == KeyEdge.Down
+            && _activeTrigger is { } held
+            && held.Vk == input.VirtualKeyCode)
+        {
+            return SwallowSilently;
         }
 
         if (input.Edge == KeyEdge.Down
