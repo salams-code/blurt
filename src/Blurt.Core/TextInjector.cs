@@ -5,7 +5,7 @@ namespace Blurt.Core;
 /// snapshot what's there → put the text on it → simulate Ctrl+V → restore the
 /// snapshot. No caret querying; the focused app does the actual insertion.
 /// </summary>
-public sealed class TextInjector
+public sealed class TextInjector : ITextInjector
 {
     private readonly IClipboard _clipboard;
     private readonly IPasteKeystroke _paste;
@@ -23,7 +23,7 @@ public sealed class TextInjector
     /// the paste keystroke could not be delivered; in that case the text is left
     /// on the clipboard so the user can paste it manually — never silently lost.
     /// </summary>
-    public async Task<bool> InjectAsync(string text)
+    public async Task<bool> InjectAsync(string text, CancellationToken ct = default)
     {
         // The snapshot is best-effort: losing the user's clipboard backup is
         // bad, but losing the dictated text is worse. If the clipboard can't be

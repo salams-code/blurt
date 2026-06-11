@@ -85,8 +85,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
     }
 
-    // Push-to-talk dictation (issue 04): hold = record, release = transcribe
-    // locally and surface the raw text in a balloon. Injection comes in 03/05.
+    // Push-to-talk dictation (issue 05): hold = record, release = transcribe
+    // locally and inject the verbatim text at the cursor. This is "Pur" mode —
+    // no refinement, zero network — driven by the Core DictationPipeline.
     private void OnEnglishTrigger(KeyEdge edge)
     {
         if (edge == KeyEdge.Down)
@@ -105,33 +106,60 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
 
         var audio = _recorder.Stop();
-        _ = TranscribeAndShowAsync(audio);   // fire-and-forget; errors surface as a balloon
+        _ = DictateAsync(audio);   // fire-and-forget; outcome surfaces as a balloon only when notable
     }
 
-    private async Task TranscribeAndShowAsync(Stream audio)
+    private async Task DictateAsync(Stream audio)
     {
         // This method starts on the UI thread (the hook delivers events there),
-        // so every await resumes on it — balloon calls below are safe. The
-        // CPU-heavy work runs on the thread pool to keep the tray responsive.
+        // so every await resumes on it — balloon calls below are safe.
         try
         {
+            // Provisioning (first-run download) can fail on a blocked network;
+            // keep that a soft notice rather than letting it reach the pipeline.
             var transcriber = await _transcriber.GetAsync();
-            var text = await Task.Run(() => transcriber.TranscribeAsync(audio));
-            _trayIcon.ShowBalloonTip(
-                5000,
-                $"{AppInfo.Name} transcript",
-                string.IsNullOrWhiteSpace(text) ? "(no speech detected)" : text,
-                ToolTipIcon.Info);
+
+            // Pur mode: no refinement delegate, so verbatim Whisper output is
+            // injected at the cursor. The transcriber adapter pushes the
+            // CPU-heavy decode onto the thread pool to keep the tray responsive.
+            var pipeline = new DictationPipeline(
+                new OffloadedTranscriber(transcriber),
+                _textInjector);
+
+            var outcome = await pipeline.RunAsync(audio);
+
+            // Fail-soft notices: success injects silently; only the cases where
+            // nothing landed at the cursor warrant a balloon.
+            switch (outcome)
+            {
+                case DictationOutcome.NothingTranscribed:
+                    _trayIcon.ShowBalloonTip(3000, AppInfo.Name, "(no speech detected)", ToolTipIcon.Info);
+                    break;
+                case DictationOutcome.TranscriptionFailed:
+                    _trayIcon.ShowBalloonTip(5000, AppInfo.Name, "Transcription failed.", ToolTipIcon.Error);
+                    break;
+            }
         }
         catch (Exception ex)
         {
-            // Fail-soft (design §10): transcription failure is a notice, not a crash.
-            _trayIcon.ShowBalloonTip(5000, AppInfo.Name, $"Transcription failed: {ex.Message}", ToolTipIcon.Error);
+            // Provisioning failure (e.g. blocked model download) — fail-soft.
+            _trayIcon.ShowBalloonTip(5000, AppInfo.Name, $"Dictation unavailable: {ex.Message}", ToolTipIcon.Error);
         }
         finally
         {
             await audio.DisposeAsync();
         }
+    }
+
+    /// <summary>
+    /// Adapts the provisioned <see cref="LocalWhisper"/> to <see cref="ITranscriber"/>
+    /// while moving the CPU-bound decode off the UI thread, so the pipeline stays
+    /// agnostic of threading and the tray stays responsive during transcription.
+    /// </summary>
+    private sealed class OffloadedTranscriber(ITranscriber inner) : ITranscriber
+    {
+        public Task<string> TranscribeAsync(Stream wavAudio, CancellationToken ct = default)
+            => Task.Run(() => inner.TranscribeAsync(wavAudio, ct), ct);
     }
 
     private async Task<LocalWhisper> ProvisionTranscriberAsync()
