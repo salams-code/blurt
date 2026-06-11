@@ -1,6 +1,6 @@
 # 04 — Audio capture + local Whisper transcription (visible result)
 
-Status: ready-for-human (implemented; live mic+model check pending)
+Status: done
 Type: HITL
 
 ## Implementation note (handoff)
@@ -64,3 +64,7 @@ proxy/TLS interception). Two consequences handled:
    (huggingface.co/ggerganov/whisper.cpp) into `%APPDATA%\Blurt\models\` —
    provisioning then skips the download. A proper alternative source/setting
    belongs to issue 12 (online transcription) / 14 (settings window).
+
+**2026-06-11 (user):** Model installed manually (corporate proxy blocks the
+in-app download — see note above). German dictation transcribes and shows in
+the balloon as specified for this slice. Issue closed.

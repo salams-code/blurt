@@ -1,6 +1,6 @@
 # 03 — Text injection at the cursor via clipboard
 
-Status: ready-for-human (implemented; live paste check pending)
+Status: done
 Type: HITL
 
 ## Implementation note (handoff)
@@ -60,3 +60,6 @@ never again" depending on release order). Chord composition extracted to
 `Blurt.Core.PasteChord` (unit-tested): physically held Alt keys are released
 ahead of the Ctrl+V chord, all in one SendInput call. Release order no longer
 matters.
+
+**2026-06-11 (user):** After the PasteChord fix, paste arrives reliably in any
+release order. Clipboard restore confirmed. Issue closed.
