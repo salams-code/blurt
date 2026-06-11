@@ -18,4 +18,16 @@ public class RefinementPromptsTests
         Assert.Contains("punctuation", prompt, System.StringComparison.OrdinalIgnoreCase);
         Assert.Contains("filler", prompt, System.StringComparison.OrdinalIgnoreCase);
     }
+
+    [Fact]
+    public void English_prompt_instructs_a_translation_into_english()
+    {
+        var prompt = RefinementPrompts.English;
+
+        Assert.False(string.IsNullOrWhiteSpace(prompt));
+        // English output is the contract for the English mode (design + issue 10).
+        Assert.Contains("English", prompt, System.StringComparison.OrdinalIgnoreCase);
+        // It is a translation prompt, not a cleanup.
+        Assert.Contains("translat", prompt, System.StringComparison.OrdinalIgnoreCase);
+    }
 }

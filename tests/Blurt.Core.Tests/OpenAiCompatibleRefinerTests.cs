@@ -53,6 +53,35 @@ public class OpenAiCompatibleRefinerTests
     }
 
     [Fact]
+    public async Task The_english_mode_sends_the_translation_prompt_and_returns_the_english_text()
+    {
+        // English mode (issue 10): the same refiner runs the German transcript
+        // through the translation prompt and returns clean English. The only
+        // difference from Fix is which system prompt is sent.
+        var handler = new CapturingHandler(ResponseWithContent("Hello world, how are you?"));
+        var refiner = new OpenAiCompatibleRefiner(
+            new HttpClient(handler),
+            baseUrl: "https://api.openai.com/v1",
+            model: "gpt-4o-mini",
+            apiKey: "sk-test-123");
+
+        var refined = await refiner.RefineAsync("hallo welt wie geht es dir", RefinementPrompts.English);
+
+        // The English translation from the assistant message is returned verbatim.
+        Assert.Equal("Hello world, how are you?", refined);
+
+        // The system message carries the English (translation) prompt, and the
+        // German transcript is the user message.
+        using var doc = JsonDocument.Parse(handler.RequestBody!);
+        var messages = doc.RootElement.GetProperty("messages");
+        Assert.Equal(2, messages.GetArrayLength());
+        Assert.Equal("system", messages[0].GetProperty("role").GetString());
+        Assert.Equal(RefinementPrompts.English, messages[0].GetProperty("content").GetString());
+        Assert.Equal("user", messages[1].GetProperty("role").GetString());
+        Assert.Equal("hallo welt wie geht es dir", messages[1].GetProperty("content").GetString());
+    }
+
+    [Fact]
     public async Task Uses_a_custom_base_url_and_model_unchanged_for_remote_ollama()
     {
         // The same client serves a remote OpenAI-compatible (e.g. Ollama) endpoint
