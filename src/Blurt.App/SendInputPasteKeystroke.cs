@@ -6,9 +6,10 @@ namespace Blurt.App;
 /// <summary>
 /// Simulates Ctrl+V via Win32 <c>SendInput</c> so the focused app pastes the
 /// clipboard at its own caret — Blurt never has to know where the caret is.
-/// All four events go in a single <c>SendInput</c> call so no real keystroke
-/// can interleave with the chord. (AltGr still being physically held at this
-/// point is a known follow-up concern, out of scope here.)
+/// The chord composition (including releasing an AltGr the user still holds,
+/// which would otherwise turn the paste into Ctrl+Alt+V) lives unit-tested in
+/// <see cref="PasteChord"/>; all events go in a single <c>SendInput</c> call
+/// so no real keystroke can interleave with the chord.
 ///
 /// Verified manually on Windows; decision logic lives in <see cref="TextInjector"/>.
 /// </summary>
@@ -16,35 +17,36 @@ internal sealed class SendInputPasteKeystroke : IPasteKeystroke
 {
     private const int InputKeyboard = 1;
     private const uint KeyEventFKeyUp = 0x0002;
-    private const ushort VkControl = 0x11;
-    private const ushort VkV = 0x56;
+    private const int VkLMenu = 0xA4;
+    private const int VkRMenu = 0xA5;
+
+    // Only the Alt keys: they are what the trigger gesture leaves physically
+    // held (AltGr = right Alt), and an Alt-up for a key that is not down is a
+    // no-op, so probing+releasing is safe.
+    private static readonly int[] CorruptingModifiers = [VkLMenu, VkRMenu];
 
     public bool SendPaste()
     {
-        var inputs = new[]
-        {
-            KeyInput(VkControl, up: false),
-            KeyInput(VkV, up: false),
-            KeyInput(VkV, up: true),
-            KeyInput(VkControl, up: true),
-        };
+        var held = CorruptingModifiers.Where(vk => (GetAsyncKeyState(vk) & 0x8000) != 0).ToArray();
+
+        var inputs = PasteChord.Build(held)
+            .Select(key => new Input
+            {
+                type = InputKeyboard,
+                union = new InputUnion
+                {
+                    ki = new KeyboardInput
+                    {
+                        wVk = (ushort)key.VirtualKeyCode,
+                        dwFlags = key.Edge == KeyEdge.Up ? KeyEventFKeyUp : 0,
+                    },
+                },
+            })
+            .ToArray();
 
         var sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<Input>());
         return sent == inputs.Length;   // partial delivery counts as failure
     }
-
-    private static Input KeyInput(ushort virtualKey, bool up) => new()
-    {
-        type = InputKeyboard,
-        union = new InputUnion
-        {
-            ki = new KeyboardInput
-            {
-                wVk = virtualKey,
-                dwFlags = up ? KeyEventFKeyUp : 0,
-            },
-        },
-    };
 
     [StructLayout(LayoutKind.Sequential)]
     private struct Input
@@ -85,4 +87,7 @@ internal sealed class SendInputPasteKeystroke : IPasteKeystroke
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern uint SendInput(uint nInputs, Input[] pInputs, int cbSize);
+
+    [DllImport("user32.dll")]
+    private static extern short GetAsyncKeyState(int vKey);
 }

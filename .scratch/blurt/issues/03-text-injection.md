@@ -52,3 +52,11 @@ focused app's own cursor via paste.
 ## Blocked by
 
 - 01 — Solution skeleton + tray that runs
+
+**2026-06-11 (agent):** Live check found the flagged AltGr follow-up is the
+common case, not an edge: releasing the trigger key while still holding AltGr
+made the target app see Ctrl+Alt+V → no paste ("worked the first time, then
+never again" depending on release order). Chord composition extracted to
+`Blurt.Core.PasteChord` (unit-tested): physically held Alt keys are released
+ahead of the Ctrl+V chord, all in one SendInput call. Release order no longer
+matters.
