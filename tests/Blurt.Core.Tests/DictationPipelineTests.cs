@@ -1,3 +1,4 @@
+using System.Net.Http;
 using Blurt.Core;
 using Xunit;
 
@@ -101,6 +102,45 @@ public class DictationPipelineTests
 
         Assert.Equal("HALLO WELT", injector.InjectedText);
         Assert.Equal(DictationOutcome.Injected, outcome);
+    }
+
+    [Fact]
+    public async Task A_failing_refinement_falls_back_to_injecting_the_raw_transcript()
+    {
+        var transcriber = new FakeTranscriber { Text = "ähm hallo welt" };
+        var injector = new RecordingInjector();
+        // The refiner endpoint is unreachable: refinement must not lose the
+        // dictation. The raw transcript is injected and the outcome says so, so
+        // the caller can surface a "refinement offline" notice.
+        var pipeline = new DictationPipeline(
+            transcriber,
+            injector,
+            refine: (_, _) => Task.FromException<string>(
+                new HttpRequestException("connection refused")));
+
+        var outcome = await pipeline.RunAsync(Audio());
+
+        Assert.Equal("ähm hallo welt", injector.InjectedText);
+        Assert.Equal(DictationOutcome.RefinedOffline, outcome);
+    }
+
+    [Fact]
+    public async Task A_failing_refinement_on_a_non_speech_transcript_still_injects_nothing()
+    {
+        // If there was no speech to begin with, a refiner failure must not cause
+        // a bracketed non-speech marker to be injected as the "raw" fallback.
+        var transcriber = new FakeTranscriber { Text = "[BLANK_AUDIO]" };
+        var injector = new RecordingInjector();
+        var pipeline = new DictationPipeline(
+            transcriber,
+            injector,
+            refine: (_, _) => Task.FromException<string>(
+                new HttpRequestException("connection refused")));
+
+        var outcome = await pipeline.RunAsync(Audio());
+
+        Assert.False(injector.WasCalled);
+        Assert.Equal(DictationOutcome.NothingTranscribed, outcome);
     }
 
     // --- hand-rolled fakes over the pipeline's seams ---
