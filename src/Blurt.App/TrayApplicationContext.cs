@@ -95,16 +95,18 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
     }
 
-    // Push-to-talk dictation (issue 05): hold = record, release = transcribe
-    // locally and inject the verbatim text at the cursor. This is "Pur" mode —
-    // no refinement, zero network — driven by the Core DictationPipeline.
+    // English push-to-talk (issue 10): hold = record, release = transcribe the
+    // (German) speech locally then refine it through the OpenAI-compatible
+    // endpoint with the translation prompt, injecting fluent English at the
+    // cursor. Shares RefineAndInjectAsync with Fix — only the prompt differs —
+    // and falls soft back to the raw transcript when the endpoint is unreachable.
     private void OnEnglishTrigger(KeyEdge edge)
     {
         if (edge == KeyEdge.Down)
         {
             _recorder.Start();
             _trayIcon.Icon = SystemIcons.Information;
-            _trayIcon.Text = $"{AppInfo.Name} - recording";
+            _trayIcon.Text = $"{AppInfo.Name} - recording (english)";
             return;
         }
 
@@ -116,7 +118,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
 
         var audio = _recorder.Stop();
-        _ = DictateAsync(audio);   // fire-and-forget; outcome surfaces as a balloon only when notable
+        _ = RefineAndInjectAsync(audio, RefinementPrompts.English);   // fire-and-forget; outcome surfaces as a balloon only when notable
     }
 
     // Flex-slot push-to-talk (issue 07). Down starts recording and stamps the
