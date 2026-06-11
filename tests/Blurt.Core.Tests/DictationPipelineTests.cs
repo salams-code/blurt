@@ -125,6 +125,44 @@ public class DictationPipelineTests
     }
 
     [Fact]
+    public async Task A_blocked_paste_reports_injection_blocked_with_the_text_left_on_the_clipboard()
+    {
+        var transcriber = new FakeTranscriber { Text = "hallo welt" };
+        // The target app refused the paste (InjectAsync returned false). The
+        // injector already left the text on the clipboard, so nothing is lost —
+        // the pipeline must surface that as InjectionBlocked, not Injected.
+        var injector = new RecordingInjector { Result = false };
+        var pipeline = new DictationPipeline(transcriber, injector);
+
+        var outcome = await pipeline.RunAsync(Audio());
+
+        Assert.True(injector.WasCalled);   // injection was attempted; text is on the clipboard
+        Assert.Equal("hallo welt", injector.InjectedText);
+        Assert.Equal(DictationOutcome.InjectionBlocked, outcome);
+    }
+
+    [Fact]
+    public async Task A_blocked_paste_after_a_failed_refinement_still_reports_injection_blocked()
+    {
+        // Two things go wrong: the refiner is offline (raw transcript is used)
+        // and the paste is then blocked. The injection failure dominates, because
+        // the user-visible problem is the text not landing — it sits on the
+        // clipboard, so "couldn't paste" is the notice that matters.
+        var transcriber = new FakeTranscriber { Text = "ähm hallo welt" };
+        var injector = new RecordingInjector { Result = false };
+        var pipeline = new DictationPipeline(
+            transcriber,
+            injector,
+            refine: (_, _) => Task.FromException<string>(
+                new HttpRequestException("connection refused")));
+
+        var outcome = await pipeline.RunAsync(Audio());
+
+        Assert.Equal("ähm hallo welt", injector.InjectedText);   // raw transcript, on the clipboard
+        Assert.Equal(DictationOutcome.InjectionBlocked, outcome);
+    }
+
+    [Fact]
     public async Task A_failing_refinement_on_a_non_speech_transcript_still_injects_nothing()
     {
         // If there was no speech to begin with, a refiner failure must not cause

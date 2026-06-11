@@ -23,6 +23,14 @@ public enum DictationOutcome
     /// offline" notice.
     /// </summary>
     RefinedOffline,
+
+    /// <summary>
+    /// The paste keystroke was refused by the focused app, so the text could not
+    /// be inserted at the cursor. Fail-soft: the injector leaves the text on the
+    /// clipboard so it is never lost; the caller surfaces a "couldn't paste —
+    /// text left on clipboard" notice so the user can paste it manually.
+    /// </summary>
+    InjectionBlocked,
 }
 
 /// <summary>
@@ -99,7 +107,16 @@ public sealed class DictationPipeline
             }
         }
 
-        await _injector.InjectAsync(text, ct);
+        // A false return means the paste was blocked by the focused app — the
+        // injector has left the text on the clipboard, so nothing is lost. This
+        // dominates RefinedOffline: the user-visible problem is the text not
+        // landing at the cursor, not which version was attempted.
+        var injected = await _injector.InjectAsync(text, ct);
+        if (!injected)
+        {
+            return DictationOutcome.InjectionBlocked;
+        }
+
         return refinedOffline ? DictationOutcome.RefinedOffline : DictationOutcome.Injected;
     }
 

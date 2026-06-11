@@ -12,6 +12,14 @@ namespace Blurt.App;
 internal sealed class TrayApplicationContext : ApplicationContext
 {
     private readonly NotifyIcon _trayIcon;
+
+    // The single fail-soft surface (issue 13): every notice — outcome balloons,
+    // provisioning failures, the no-mic warning, flex-slot hints — goes through
+    // here instead of calling ShowBalloonTip directly, so they share one
+    // non-blocking channel. Tray-only today; the overlay channel (issue 06)
+    // plugs into TrayNotifier without touching these call sites.
+    private readonly INotifier _notifier;
+
     private readonly KeyboardHook _keyboardHook;
     private readonly TextInjector _textInjector;
     private readonly AudioRecorder _recorder = new();
@@ -55,6 +63,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             Visible = true,
             ContextMenuStrip = menu,
         };
+        _notifier = new TrayNotifier(_trayIcon);
 
         // 300 ms gives the focused app time to consume the Ctrl+V before the
         // user's original clipboard is put back (pasting is asynchronous).
@@ -95,6 +104,25 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
     }
 
+    // Fail-soft microphone start (design §10, mode 1): opening the default
+    // capture device throws (NAudio) when there is no microphone or permission
+    // is denied. Catch it, surface a notice through the notifier, and return
+    // false so the down-handler simply doesn't enter recording — the app keeps
+    // running instead of crashing on a missing device.
+    private bool TryStartRecording()
+    {
+        try
+        {
+            _recorder.Start();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _notifier.Notify($"No microphone available: {ex.Message}", NoticeLevel.Error);
+            return false;
+        }
+    }
+
     // English push-to-talk (issue 10): hold = record, release = transcribe the
     // (German) speech locally then refine it through the OpenAI-compatible
     // endpoint with the translation prompt, injecting fluent English at the
@@ -104,7 +132,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         if (edge == KeyEdge.Down)
         {
-            _recorder.Start();
+            if (!TryStartRecording())
+            {
+                return;   // no mic — notice already shown, app keeps running
+            }
+
             _trayIcon.Icon = SystemIcons.Information;
             _trayIcon.Text = $"{AppInfo.Name} - recording (english)";
             return;
@@ -130,8 +162,14 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         if (edge == KeyEdge.Down)
         {
+            if (!TryStartRecording())
+            {
+                // No mic — notice already shown. Leave _flexSlotDownTicks null so
+                // the matching key-up is treated as a no-op press, not a tap/hold.
+                return;
+            }
+
             _flexSlotDownTicks = Environment.TickCount64;
-            _recorder.Start();
             _trayIcon.Icon = SystemIcons.Information;
             _trayIcon.Text = $"{AppInfo.Name} - {_flexSlotCycle.Current} (recording)";
             return;
@@ -162,7 +200,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             _recorder.Stop().Dispose();
             var mode = _flexSlotCycle.Cycle();
             _trayIcon.Text = $"{AppInfo.Name} - {mode}";
-            _trayIcon.ShowBalloonTip(2000, AppInfo.Name, $"Flex slot: {mode}", ToolTipIcon.Info);
+            _notifier.Notify($"Flex slot: {mode}", NoticeLevel.Info);
             return;
         }
 
@@ -180,11 +218,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
             // the raw transcript (fail-soft) but first nudges the user to set one.
             if (currentMode == FlexSlotMode.Custom)
             {
-                _trayIcon.ShowBalloonTip(
-                    3000,
-                    AppInfo.Name,
-                    "No custom prompt set — inserting raw dictation.",
-                    ToolTipIcon.Info);
+                _notifier.Notify(
+                    "No custom prompt set — inserting raw dictation.", NoticeLevel.Info);
             }
 
             _ = DictateAsync(audio);   // verbatim, no refinement (same as English/Pur)
@@ -214,22 +249,15 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
             var outcome = await pipeline.RunAsync(audio);
 
-            // Fail-soft notices: success injects silently; only the cases where
-            // nothing landed at the cursor warrant a balloon.
-            switch (outcome)
-            {
-                case DictationOutcome.NothingTranscribed:
-                    _trayIcon.ShowBalloonTip(3000, AppInfo.Name, "(no speech detected)", ToolTipIcon.Info);
-                    break;
-                case DictationOutcome.TranscriptionFailed:
-                    _trayIcon.ShowBalloonTip(5000, AppInfo.Name, "Transcription failed.", ToolTipIcon.Error);
-                    break;
-            }
+            // Single fail-soft path: DictationNotices decides what (if anything)
+            // to say for this outcome — Injected is silent, every other case maps
+            // to a notice surfaced through the one notifier.
+            Notify(outcome);
         }
         catch (Exception ex)
         {
             // Provisioning failure (e.g. blocked model download) — fail-soft.
-            _trayIcon.ShowBalloonTip(5000, AppInfo.Name, $"Dictation unavailable: {ex.Message}", ToolTipIcon.Error);
+            _notifier.Notify($"Dictation unavailable: {ex.Message}", NoticeLevel.Error);
         }
         finally
         {
@@ -245,7 +273,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         if (edge == KeyEdge.Down)
         {
-            _recorder.Start();
+            if (!TryStartRecording())
+            {
+                return;   // no mic — notice already shown, app keeps running
+            }
+
             _trayIcon.Icon = SystemIcons.Information;
             _trayIcon.Text = $"{AppInfo.Name} - recording (fix)";
             return;
@@ -294,28 +326,30 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
             var outcome = await pipeline.RunAsync(audio);
 
-            switch (outcome)
-            {
-                case DictationOutcome.NothingTranscribed:
-                    _trayIcon.ShowBalloonTip(3000, AppInfo.Name, "(no speech detected)", ToolTipIcon.Info);
-                    break;
-                case DictationOutcome.TranscriptionFailed:
-                    _trayIcon.ShowBalloonTip(5000, AppInfo.Name, "Transcription failed.", ToolTipIcon.Error);
-                    break;
-                case DictationOutcome.RefinedOffline:
-                    _trayIcon.ShowBalloonTip(
-                        4000, AppInfo.Name, "Refinement offline — raw text inserted.", ToolTipIcon.Warning);
-                    break;
-            }
+            // Same single fail-soft path as DictateAsync — the refined modes add
+            // RefinedOffline and InjectionBlocked, both handled by the mapping.
+            Notify(outcome);
         }
         catch (Exception ex)
         {
             // Provisioning failure (e.g. blocked model download) — fail-soft.
-            _trayIcon.ShowBalloonTip(5000, AppInfo.Name, $"Dictation unavailable: {ex.Message}", ToolTipIcon.Error);
+            _notifier.Notify($"Dictation unavailable: {ex.Message}", NoticeLevel.Error);
         }
         finally
         {
             await audio.DisposeAsync();
+        }
+    }
+
+    // Maps a pipeline outcome to its notice (Core's DictationNotices decides the
+    // text and level) and surfaces it through the one notifier. Injected yields
+    // null — a successful dictation says nothing.
+    private void Notify(DictationOutcome outcome)
+    {
+        var notice = DictationNotices.For(outcome);
+        if (notice is not null)
+        {
+            _notifier.Notify(notice.Message, notice.Level);
         }
     }
 
@@ -340,11 +374,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
         // wait before the first transcript doesn't look like a hang.
         if (!provisioner.IsModelPresent(WhisperModel.Default))
         {
-            _trayIcon.ShowBalloonTip(
-                5000,
-                AppInfo.Name,
+            _notifier.Notify(
                 $"Downloading Whisper model ({WhisperModel.Default.FileName}, ~460 MB)…",
-                ToolTipIcon.Info);
+                NoticeLevel.Info);
         }
 
         var modelPath = await provisioner.EnsureModelAsync(WhisperModel.Default);
