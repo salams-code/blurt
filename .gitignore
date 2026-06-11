@@ -11,3 +11,6 @@ obj/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Agent worktrees (transient, created by isolated subagents)
+.claude/worktrees/
