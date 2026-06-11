@@ -6,10 +6,21 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
+    <!-- Issue 06: the status overlay pill is a WPF window living in the same
+         WinForms STA process; WPF and WinForms coexist on the one UI thread. -->
+    <UseWPF>true</UseWPF>
     <!-- Portable: the produced binary is Blurt.exe, runnable from any user folder. -->
     <AssemblyName>Blurt</AssemblyName>
     <RootNamespace>Blurt.App</RootNamespace>
   </PropertyGroup>
+
+  <!-- Enabling UseWPF alongside UseWindowsForms narrows the implicit-usings set
+       to the intersection, which drops System.IO. The audio/transcriber adapters
+       rely on it (Stream/MemoryStream), so re-add it as a global using rather than
+       editing each unrelated file. -->
+  <ItemGroup>
+    <Using Include="System.IO" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Blurt.Core\Blurt.Core.csproj" />

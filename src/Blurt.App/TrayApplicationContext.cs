@@ -13,6 +13,13 @@ internal sealed class TrayApplicationContext : ApplicationContext
 {
     private readonly NotifyIcon _trayIcon;
 
+    // Status feedback (issue 06): the click-through overlay pill and the colour-
+    // coded tray icons, both driven from Core's pure OverlayState/TrayState/
+    // TrayPalette so listening/transcribing show in sync on overlay and tray.
+    private readonly OverlayController _overlay;
+    private readonly TrayIcons _trayIcons = new();
+    private readonly bool _soundEnabled;
+
     // The single fail-soft surface (issue 13): every notice — outcome balloons,
     // provisioning failures, the no-mic warning, flex-slot hints — goes through
     // here instead of calling ShowBalloonTip directly, so they share one
@@ -55,10 +62,16 @@ internal sealed class TrayApplicationContext : ApplicationContext
         var menu = new ContextMenuStrip();
         menu.Items.Add("Exit", image: null, (_, _) => ExitApp());
 
+        // Read the overlay anchor and sound toggle once at start-up; both are
+        // stable user preferences (a restart picks up a change, like the hotkeys).
+        var config = _settings.Load();
+        _soundEnabled = config.SoundEnabled;
+        _overlay = new OverlayController(config.OverlayAnchor);
+
         _trayIcon = new NotifyIcon
         {
-            // Placeholder icon until the idle/recording/processing icons land (issue 06).
-            Icon = SystemIcons.Application,
+            // Colour-coded status icon (issue 06): start idle (neutral grey dot).
+            Icon = _trayIcons.For(TrayState.Idle),
             Text = AppInfo.Name,
             Visible = true,
             ContextMenuStrip = menu,
@@ -137,19 +150,20 @@ internal sealed class TrayApplicationContext : ApplicationContext
                 return;   // no mic — notice already shown, app keeps running
             }
 
-            _trayIcon.Icon = SystemIcons.Information;
             _trayIcon.Text = $"{AppInfo.Name} - recording (english)";
+            EnterRecording();   // "listening" pill + red tray + optional start beep
             return;
         }
 
-        _trayIcon.Icon = SystemIcons.Application;
         _trayIcon.Text = AppInfo.Name;
         if (!_recorder.IsRecording)
         {
-            return;   // key-up without a matching down (e.g. held across app start)
+            ReturnToIdle();   // key-up without a matching down — make sure we rest
+            return;
         }
 
         var audio = _recorder.Stop();
+        PlaySound(start: false);   // optional stop beep at release
         _ = RefineAndInjectAsync(audio, RefinementPrompts.English);   // fire-and-forget; outcome surfaces as a balloon only when notable
     }
 
@@ -170,12 +184,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
             }
 
             _flexSlotDownTicks = Environment.TickCount64;
-            _trayIcon.Icon = SystemIcons.Information;
             _trayIcon.Text = $"{AppInfo.Name} - {_flexSlotCycle.Current} (recording)";
+            EnterRecording();   // "listening" pill + red tray + optional start beep
             return;
         }
 
-        _trayIcon.Icon = SystemIcons.Application;
         _trayIcon.Text = AppInfo.Name;
 
         if (_flexSlotDownTicks is not { } downTicks || !_recorder.IsRecording)
@@ -187,17 +200,24 @@ internal sealed class TrayApplicationContext : ApplicationContext
             {
                 _recorder.Stop().Dispose();
             }
+            ReturnToIdle();   // make sure the pill/tray don't get stuck recording
             return;
         }
 
         var held = TimeSpan.FromMilliseconds(Environment.TickCount64 - downTicks);
         _flexSlotDownTicks = null;
 
+        // A tap or a hold both end the recording, so play the optional stop beep
+        // once here before either branch acts.
+        PlaySound(start: false);
+
         if (_tapHoldClassifier.Classify(held) == TapOrHold.Tap)
         {
             // Tap: the recording was never meant as speech — throw it away and
-            // advance the mode, surfacing the new one in the tray.
+            // advance the mode, surfacing the new one in the tray. No transcription,
+            // so the overlay goes straight back to idle (no "transcribing" pill).
             _recorder.Stop().Dispose();
+            ReturnToIdle();
             var mode = _flexSlotCycle.Cycle();
             _trayIcon.Text = $"{AppInfo.Name} - {mode}";
             _notifier.Notify($"Flex slot: {mode}", NoticeLevel.Info);
@@ -234,6 +254,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         // This method starts on the UI thread (the hook delivers events there),
         // so every await resumes on it — balloon calls below are safe.
+        EnterProcessing();   // "transcribing" pill + amber tray for the decode
         try
         {
             // Provisioning (first-run download) can fail on a blocked network;
@@ -261,6 +282,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
         finally
         {
+            ReturnToIdle();   // hide the pill + tray back to idle once text is in (or failed)
             await audio.DisposeAsync();
         }
     }
@@ -278,19 +300,20 @@ internal sealed class TrayApplicationContext : ApplicationContext
                 return;   // no mic — notice already shown, app keeps running
             }
 
-            _trayIcon.Icon = SystemIcons.Information;
             _trayIcon.Text = $"{AppInfo.Name} - recording (fix)";
+            EnterRecording();   // "listening" pill + red tray + optional start beep
             return;
         }
 
-        _trayIcon.Icon = SystemIcons.Application;
         _trayIcon.Text = AppInfo.Name;
         if (!_recorder.IsRecording)
         {
-            return;   // key-up without a matching down (e.g. held across app start)
+            ReturnToIdle();   // key-up without a matching down — make sure we rest
+            return;
         }
 
         var audio = _recorder.Stop();
+        PlaySound(start: false);   // optional stop beep at release
         _ = RefineAndInjectAsync(audio, RefinementPrompts.Fix);   // fire-and-forget; outcome surfaces as a balloon only when notable
     }
 
@@ -302,6 +325,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         // Starts on the UI thread (the hook delivers events there), so every
         // await resumes on it — balloon calls below are safe.
+        EnterProcessing();   // "transcribing" pill + amber tray while we transcribe+refine
         try
         {
             var transcriber = await _transcriber.GetAsync();
@@ -337,7 +361,57 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
         finally
         {
+            ReturnToIdle();   // hide the pill + tray back to idle once text is in (or failed)
             await audio.DisposeAsync();
+        }
+    }
+
+    // Swap the tray icon to the colour for this state (idle grey / recording red /
+    // processing amber). The icons are pre-built from Core's TrayPalette so this is
+    // a cheap reference swap, not a redraw.
+    private void SetTrayState(TrayState state) => _trayIcon.Icon = _trayIcons.For(state);
+
+    // Enter the recording state: pill shows "listening", tray turns red, optional
+    // start beep. Called from each trigger's Down branch after recording starts.
+    private void EnterRecording()
+    {
+        _overlay.Show(OverlayState.Listening);
+        SetTrayState(TrayState.Recording);
+        PlaySound(start: true);
+    }
+
+    // Enter the processing state: pill shows "transcribing", tray turns amber.
+    // Called at the start of the async transcribe/refine path after the take stops.
+    private void EnterProcessing()
+    {
+        _overlay.Show(OverlayState.Transcribing);
+        SetTrayState(TrayState.Processing);
+    }
+
+    // Return to rest: hide the pill, tray back to idle grey, optional stop beep.
+    // Called from the async methods' finally and when a flex-slot tap aborts.
+    private void ReturnToIdle()
+    {
+        _overlay.Hide();
+        SetTrayState(TrayState.Idle);
+    }
+
+    // Optional, off by default (config.SoundEnabled): a short system sound on
+    // record start/stop. Meeting-friendly silence is the default (design §9).
+    private void PlaySound(bool start)
+    {
+        if (!_soundEnabled)
+        {
+            return;
+        }
+
+        if (start)
+        {
+            System.Media.SystemSounds.Beep.Play();
+        }
+        else
+        {
+            System.Media.SystemSounds.Asterisk.Play();
         }
     }
 
@@ -396,7 +470,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
             _keyboardHook.Dispose();   // uninstall the hook so nothing leaks on exit
             _recorder.Dispose();       // releases the capture device if mid-recording
             _httpClient.Dispose();     // close the refiner's pooled connections
+            _overlay.Dispose();        // close the WPF overlay window (issue 06)
             _trayIcon.Dispose();
+            _trayIcons.Dispose();      // free the generated tray icon GDI handles (issue 06)
         }
 
         base.Dispose(disposing);
