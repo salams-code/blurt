@@ -34,6 +34,43 @@ public class DictationPipelineTests
         Assert.Equal(DictationOutcome.NothingTranscribed, outcome);
     }
 
+    [Theory]
+    [InlineData("[BLANK_AUDIO]")]
+    [InlineData("(Musik)")]
+    [InlineData("[MUSIC]")]
+    [InlineData("  (Musik)\n")]
+    public async Task A_whisper_non_speech_marker_injects_nothing(string transcript)
+    {
+        // Whisper does not return an empty string for silence/noise — it emits a
+        // bracketed annotation like "[BLANK_AUDIO]" or "(Musik)". Injecting that
+        // literally at the cursor would be wrong; it means "no speech", same as
+        // an empty transcript.
+        var transcriber = new FakeTranscriber { Text = transcript };
+        var injector = new RecordingInjector();
+        var pipeline = new DictationPipeline(transcriber, injector);
+
+        var outcome = await pipeline.RunAsync(Audio());
+
+        Assert.False(injector.WasCalled);
+        Assert.Equal(DictationOutcome.NothingTranscribed, outcome);
+    }
+
+    [Fact]
+    public async Task Real_speech_containing_a_parenthetical_is_injected_verbatim()
+    {
+        // The non-speech guard must not mangle genuine dictation that happens to
+        // contain brackets: only a transcript that is *entirely* annotation counts
+        // as silence. Real words alongside it are injected unchanged.
+        var transcriber = new FakeTranscriber { Text = "Ich gehe (heute) einkaufen" };
+        var injector = new RecordingInjector();
+        var pipeline = new DictationPipeline(transcriber, injector);
+
+        var outcome = await pipeline.RunAsync(Audio());
+
+        Assert.Equal("Ich gehe (heute) einkaufen", injector.InjectedText);
+        Assert.Equal(DictationOutcome.Injected, outcome);
+    }
+
     [Fact]
     public async Task A_transcription_error_is_fail_soft_nothing_is_injected()
     {

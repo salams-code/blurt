@@ -5,6 +5,18 @@ Type: HITL
 
 ## Implementation note (handoff)
 
+**2026-06-11 (live check follow-up):** Manual checks 1–3 passed (verbatim
+injection in several apps, original clipboard preserved). Check 5 surfaced a
+gap: Whisper does not return an empty string for silence/noise — it emits a
+bracketed annotation (`[BLANK_AUDIO]`, `(Musik)`, `[MUSIC]`…), which the
+`IsNullOrWhiteSpace` guard let through, so the marker was injected at the cursor.
+Fixed in `DictationPipeline`: a transcript that is *entirely* bracketed/
+parenthesised annotation (plus whitespace) now counts as `NothingTranscribed`
+and injects nothing; genuine speech containing a parenthetical keeps real words
+outside the brackets and is injected **verbatim** (annotations never stripped
+from real dictation). 2 new Core tests (non-speech markers via Theory;
+parenthetical-preservation guard) — 42 Core tests total, all green.
+
 The record → transcribe → inject sequence is now owned by a headless Core
 pipeline, `DictationPipeline` (`Blurt.Core`). It depends on two seams:
 `ITranscriber` (existing) and a new `ITextInjector`

@@ -71,7 +71,7 @@ public sealed class DictationPipeline
             text = await _refine(text, ct);
         }
 
-        if (string.IsNullOrWhiteSpace(text))
+        if (IsNonSpeech(text))
         {
             return DictationOutcome.NothingTranscribed;
         }
@@ -79,4 +79,20 @@ public sealed class DictationPipeline
         await _injector.InjectAsync(text, ct);
         return DictationOutcome.Injected;
     }
+
+    // Whisper never returns an empty string for silence or background noise; it
+    // emits a bracketed annotation instead ("[BLANK_AUDIO]", "(Musik)",
+    // "[MUSIC]"…). A transcript that is *entirely* such annotations (plus
+    // whitespace) carries no spoken words, so it must not be injected. Genuine
+    // dictation that merely contains a parenthetical keeps real words outside the
+    // brackets, so the residue is non-empty and the original text is injected
+    // verbatim — the annotations are never stripped from real speech.
+    private static bool IsNonSpeech(string text)
+    {
+        var residue = NonSpeechAnnotation.Replace(text, string.Empty);
+        return string.IsNullOrWhiteSpace(residue);
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex NonSpeechAnnotation =
+        new(@"\[[^\]]*\]|\([^)]*\)", System.Text.RegularExpressions.RegexOptions.Compiled);
 }
