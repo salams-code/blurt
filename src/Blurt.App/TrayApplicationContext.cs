@@ -497,16 +497,25 @@ internal sealed class TrayApplicationContext : ApplicationContext
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             new GgmlModelDownloader());
 
+        // Honor the model the user selected in settings (issue 18) — not a
+        // hardcoded default. The choice is read here, lazily, so a Settings change
+        // takes effect on the next launch (the AsyncLazy provisions once). Loading
+        // tolerates a legacy "base" size (now removed): BlurtConfig just carries
+        // whatever was persisted, and the download guidance below is derived from it.
+        var model = _settings.Load().WhisperModel;
+
         // First run only: announce the multi-hundred-MB download so the long
-        // wait before the first transcript doesn't look like a hang.
-        if (!provisioner.IsModelPresent(WhisperModel.Default))
+        // wait before the first transcript doesn't look like a hang. The filename
+        // and link come from the selected model, so a manual install matches.
+        if (!provisioner.IsModelPresent(model))
         {
             _notifier.Notify(
-                $"Downloading Whisper model ({WhisperModel.Default.FileName}, ~460 MB)…",
+                $"Downloading Whisper model ({model.FileName})… If this is blocked, " +
+                $"place the file from {model.DownloadUrl} into {provisioner.ModelsDirectory}.",
                 NoticeLevel.Info);
         }
 
-        var modelPath = await provisioner.EnsureModelAsync(WhisperModel.Default);
+        var modelPath = await provisioner.EnsureModelAsync(model);
         return new LocalWhisper(modelPath);
     }
 
@@ -564,8 +573,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
     }
 
     // Apply a freshly-saved config to the running app. Hotkeys, overlay anchor, and
-    // sound take effect live; what cannot (transcription source, model size) is
-    // persisted now and picked up on the next launch.
+    // sound take effect live; what cannot (transcription source, the selected Whisper
+    // model) is persisted now and picked up on the next launch.
     private void ApplySettings(BlurtConfig config)
     {
         // Hotkeys: re-create the hook from the new bindings so remapped chords fire
@@ -581,8 +590,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
         // Sound flag: read live on each PlaySound, so just update the field.
         _soundEnabled = config.SoundEnabled;
 
-        // Transcription source and local model size feed the transcriber, which is
-        // provisioned once lazily — those changes apply on the next launch.
+        // Transcription source and the selected local model feed the transcriber,
+        // which is provisioned once lazily (reading the configured model in
+        // ProvisionTranscriberAsync) — those changes apply on the next launch.
     }
 
     private void ExitApp()

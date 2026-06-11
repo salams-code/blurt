@@ -85,6 +85,37 @@ public class SettingsStoreTests
     }
 
     [Fact]
+    public void Loading_a_legacy_config_with_the_removed_base_model_does_not_crash()
+    {
+        // Migration safety (issue 18): the "base" model was removed, but an existing
+        // on-disk config.json may still carry WhisperModel.Size == "base". Loading it
+        // must not throw — BlurtConfig just carries whatever was persisted, and the
+        // Settings UI falls back to small when the stored size matches no option.
+        var root = TempRoot();
+        try
+        {
+            var store = new SettingsStore(root, new FlipProtector());
+            Directory.CreateDirectory(Path.Combine(root, "Blurt"));
+            File.WriteAllText(store.ConfigPath, """
+                {
+                  "Transcription": "Local",
+                  "WhisperModel": { "Size": "base", "Quantization": "q5_1" },
+                  "OnboardingCompleted": true
+                }
+                """);
+
+            var config = store.Load();
+
+            Assert.Equal("base", config.WhisperModel.Size);
+            Assert.True(config.OnboardingCompleted);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public void Onboarding_completed_flag_round_trips_both_ways()
     {
         var root = TempRoot();

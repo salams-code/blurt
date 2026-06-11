@@ -28,6 +28,28 @@ public class ModelProvisionerTests
     }
 
     [Fact]
+    public void Turbo_model_resolves_to_the_quantized_large_v3_turbo_ggml_file_under_the_models_folder()
+    {
+        // Path resolution must work for any selection, not just the default
+        // (issue 18): the higher-quality turbo model resolves to its own file.
+        var provisioner = new ModelProvisioner(@"C:\fake\AppData\Roaming", new RecordingDownloader());
+
+        var path = provisioner.ResolvePath(WhisperModel.Turbo);
+
+        Assert.Equal(@"C:\fake\AppData\Roaming\Blurt\models\ggml-large-v3-turbo-q5_0.bin", path);
+    }
+
+    [Fact]
+    public void ModelsDirectory_is_the_blurt_models_folder_under_app_data()
+    {
+        // The UI shows this as the target folder for a manual install (issue 18),
+        // so it must match exactly where ResolvePath puts the file.
+        var provisioner = new ModelProvisioner(@"C:\fake\AppData\Roaming", new RecordingDownloader());
+
+        Assert.Equal(@"C:\fake\AppData\Roaming\Blurt\models", provisioner.ModelsDirectory);
+    }
+
+    [Fact]
     public async Task EnsureModel_downloads_the_model_to_its_resolved_path_when_missing()
     {
         // A temp root that exists, but contains no Blurt\models\... file yet.

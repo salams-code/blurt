@@ -148,7 +148,7 @@
             <StackPanel x:Name="ModelPanel" Visibility="Collapsed">
                 <TextBlock Style="{StaticResource StepTitle}" Text="Download the speech model" />
                 <TextBlock Style="{StaticResource StepSubtitle}"
-                           Text="Blurt transcribes on-device with Whisper. The small model (~460 MB) is fetched once and reused." />
+                           Text="Blurt transcribes on-device with Whisper. The selected model is fetched once and reused; if the download is blocked, install the file by hand using the link below." />
                 <Border Style="{StaticResource Card}">
                     <StackPanel>
                         <TextBlock x:Name="ModelStatus"
