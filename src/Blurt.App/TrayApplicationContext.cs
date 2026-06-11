@@ -25,6 +25,16 @@ internal sealed class TrayApplicationContext : ApplicationContext
         new DpapiSecretProtector());
     private readonly HttpClient _httpClient = new();
 
+    // Flex-slot state (issue 07). The classifier turns the key's hold duration
+    // into tap-vs-hold; the cycle rotates Pur → Bullets → Custom on each tap.
+    // Both are pure Core logic; this glue only measures time and dispatches.
+    private readonly TapHoldClassifier _tapHoldClassifier = new();
+    private readonly FlexSlotCycle _flexSlotCycle = new();
+
+    // When the Flex-slot key went down, so its release can be classified as a
+    // tap (cycle the mode) or a hold (dictate). Null between presses.
+    private long? _flexSlotDownTicks;
+
     // Created lazily on the first dictation so the model download (first run
     // only) never happens before the user actually asks for a transcription.
     // AsyncLazy forgets failed attempts: a failed download (e.g. blocked
@@ -60,13 +70,12 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _keyboardHook.Install();
     }
 
-    // Visible feedback that the hook fired and the keystroke was swallowed.
-    // Real status icons/overlay come later (issues 06, and overlay work).
+    // Pure dispatcher: each trigger owns its own handler so their record/
+    // transcribe lifecycles stay independent — English = Pur push-to-talk
+    // (issue 05), Fix = refined push-to-talk (issue 09), Flex-slot =
+    // tap-to-cycle / hold-to-dictate with the current mode (issue 07).
     private void OnTriggerObserved(TriggerEvent trigger)
     {
-        // English = Pur push-to-talk (issue 05); Fix = refined push-to-talk
-        // (issue 09). Each owns its own handler so their record/transcribe
-        // lifecycles stay independent.
         if (trigger.Kind == TriggerKind.English)
         {
             OnEnglishTrigger(trigger.Edge);
@@ -79,18 +88,10 @@ internal sealed class TrayApplicationContext : ApplicationContext
             return;
         }
 
-        // FlexSlot has no real pipeline yet (issue 07): icon swap + tooltip only
-        // — a balloon per keypress floods the Windows notification center. The
-        // real status display is issue 06's overlay.
-        if (trigger.Edge == KeyEdge.Down)
+        if (trigger.Kind == TriggerKind.FlexSlot)
         {
-            _trayIcon.Icon = SystemIcons.Information;
-            _trayIcon.Text = $"{AppInfo.Name} - {trigger.Kind} (down)";
-        }
-        else
-        {
-            _trayIcon.Icon = SystemIcons.Application;
-            _trayIcon.Text = AppInfo.Name;
+            OnFlexSlotTrigger(trigger.Edge);
+            return;
         }
     }
 
@@ -116,6 +117,69 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         var audio = _recorder.Stop();
         _ = DictateAsync(audio);   // fire-and-forget; outcome surfaces as a balloon only when notable
+    }
+
+    // Flex-slot push-to-talk (issue 07). Down starts recording and stamps the
+    // press time; up measures the held duration and lets TapHoldClassifier
+    // decide: a tap discards the take and cycles the mode (tray shows the new
+    // one), a hold transcribes. Only Pur dictates for real this slice — Bullets
+    // and Custom land in issue 11, so a hold in those modes shows a notice.
+    private void OnFlexSlotTrigger(KeyEdge edge)
+    {
+        if (edge == KeyEdge.Down)
+        {
+            _flexSlotDownTicks = Environment.TickCount64;
+            _recorder.Start();
+            _trayIcon.Icon = SystemIcons.Information;
+            _trayIcon.Text = $"{AppInfo.Name} - {_flexSlotCycle.Current} (recording)";
+            return;
+        }
+
+        _trayIcon.Icon = SystemIcons.Application;
+        _trayIcon.Text = AppInfo.Name;
+
+        if (_flexSlotDownTicks is not { } downTicks || !_recorder.IsRecording)
+        {
+            // Key-up without a matching down (e.g. held across app start). Drop
+            // any partial take and reset so the next press starts cleanly.
+            _flexSlotDownTicks = null;
+            if (_recorder.IsRecording)
+            {
+                _recorder.Stop().Dispose();
+            }
+            return;
+        }
+
+        var held = TimeSpan.FromMilliseconds(Environment.TickCount64 - downTicks);
+        _flexSlotDownTicks = null;
+
+        if (_tapHoldClassifier.Classify(held) == TapOrHold.Tap)
+        {
+            // Tap: the recording was never meant as speech — throw it away and
+            // advance the mode, surfacing the new one in the tray.
+            _recorder.Stop().Dispose();
+            var mode = _flexSlotCycle.Cycle();
+            _trayIcon.Text = $"{AppInfo.Name} - {mode}";
+            _trayIcon.ShowBalloonTip(2000, AppInfo.Name, $"Flex slot: {mode}", ToolTipIcon.Info);
+            return;
+        }
+
+        // Hold: dictate with the current mode.
+        var audio = _recorder.Stop();
+        if (_flexSlotCycle.Current == FlexSlotMode.Pur)
+        {
+            _ = DictateAsync(audio);   // Pur path: verbatim, no refinement (same as English)
+        }
+        else
+        {
+            // Bullets/Custom are not wired to a refinement step yet (issue 11).
+            audio.Dispose();
+            _trayIcon.ShowBalloonTip(
+                3000,
+                AppInfo.Name,
+                $"{_flexSlotCycle.Current} mode not available yet.",
+                ToolTipIcon.Info);
+        }
     }
 
     private async Task DictateAsync(Stream audio)
