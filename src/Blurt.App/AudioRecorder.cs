@@ -34,7 +34,25 @@ internal sealed class AudioRecorder : IDisposable
         // without closing the MemoryStream we still need to hand out.
         _writer = new WaveFileWriter(new IgnoreDisposeStream(_buffer), _waveIn.WaveFormat);
         _waveIn.DataAvailable += OnDataAvailable;
-        _waveIn.StartRecording();
+
+        try
+        {
+            _waveIn.StartRecording();
+        }
+        catch
+        {
+            // No capture device / permission denied: NAudio throws here. Reset to
+            // a clean not-recording state (so IsRecording is false and the next
+            // press starts fresh) and rethrow for the caller to surface as a
+            // fail-soft notice rather than a crash.
+            _waveIn.DataAvailable -= OnDataAvailable;
+            _waveIn.Dispose();
+            _writer.Dispose();
+            _waveIn = null;
+            _writer = null;
+            _buffer = null;
+            throw;
+        }
     }
 
     /// <summary>
