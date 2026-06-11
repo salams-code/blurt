@@ -1,3 +1,4 @@
+using Blurt.Core;
 using NAudio.Utils;
 using NAudio.Wave;
 
@@ -18,18 +19,39 @@ internal sealed class AudioRecorder : IDisposable
     private MemoryStream? _buffer;
     private WaveFileWriter? _writer;
 
+    // NAudio's device number for "the current Windows default input device" — the
+    // WaveIn device mapper. Re-opened on every Start, so whatever is default at
+    // dictation time is what records (plugging in a Bluetooth headset takes effect
+    // on the next press with no reconfiguring).
+    private const int DefaultDeviceNumber = -1;
+
     public bool IsRecording => _waveIn is not null;
 
-    /// <summary>Opens the default capture device and starts recording.</summary>
-    public void Start()
+    /// <summary>
+    /// Resolves the capture device from the configured <paramref name="mode"/> and
+    /// saved <paramref name="savedDeviceName"/> against the devices currently
+    /// enumerated by NAudio, opens it, and starts recording. Returns the resolution
+    /// so the caller can surface a fail-soft notice when the saved device is gone
+    /// (<see cref="InputDeviceResolution.FellBack"/>) — capture still proceeds from
+    /// the Windows default in that case. Idempotent while already recording.
+    /// </summary>
+    public InputDeviceResolution Start(InputDeviceMode mode, string? savedDeviceName)
     {
+        var resolution = InputDeviceResolver.Resolve(mode, savedDeviceName, EnumerateDevices());
+
         if (_waveIn is not null)
         {
-            return;   // already recording (e.g. auto-repeat of the held key)
+            return resolution;   // already recording (e.g. auto-repeat of the held key)
         }
 
+        var deviceNumber = resolution.DeviceIndex ?? DefaultDeviceNumber;
+
         _buffer = new MemoryStream();
-        _waveIn = new WaveInEvent { WaveFormat = new WaveFormat(rate: 16000, bits: 16, channels: 1) };
+        _waveIn = new WaveInEvent
+        {
+            DeviceNumber = deviceNumber,
+            WaveFormat = new WaveFormat(rate: 16000, bits: 16, channels: 1),
+        };
         // IgnoreDisposeStream: disposing the writer finalizes the WAV header
         // without closing the MemoryStream we still need to hand out.
         _writer = new WaveFileWriter(new IgnoreDisposeStream(_buffer), _waveIn.WaveFormat);
@@ -53,6 +75,19 @@ internal sealed class AudioRecorder : IDisposable
             _buffer = null;
             throw;
         }
+
+        return resolution;
+    }
+
+    // Enumerate the current capture devices as (index, ProductName) pairs for the
+    // Core resolver. ProductName is the only stable handle NAudio exposes; the
+    // index is what WaveInEvent.DeviceNumber wants for a specific device.
+    private static IReadOnlyList<(int Index, string Name)> EnumerateDevices()
+    {
+        var devices = new List<(int, string)>();
+        for (var i = 0; i < WaveInEvent.DeviceCount; i++)
+            devices.Add((i, WaveInEvent.GetCapabilities(i).ProductName));
+        return devices;
     }
 
     /// <summary>

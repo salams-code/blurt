@@ -77,6 +77,26 @@
                 </StackPanel>
             </Border>
 
+            <!-- Microphone (issue 16) -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource GroupHeader}" Text="Microphone" />
+                    <Grid Margin="0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="150" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Input device" />
+                        <ComboBox x:Name="MicrophoneBox" Grid.Column="1" />
+                    </Grid>
+                    <TextBlock Margin="0,8,0,0"
+                               TextWrapping="Wrap"
+                               Foreground="#FF808080"
+                               FontSize="11"
+                               Text="(Windows default) follows the current default input, so a newly-connected headset is used automatically. Pick a specific device to pin it." />
+                </StackPanel>
+            </Border>
+
             <!-- Refinement -->
             <Border Style="{StaticResource Card}">
                 <StackPanel>

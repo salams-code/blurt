@@ -68,6 +68,8 @@ public class SettingsStoreTests
                 CustomPrompt = "Translate to formal German.",
                 OverlayAnchor = OverlayAnchor.BottomCenter,
                 SoundEnabled = true,
+                InputDeviceMode = InputDeviceMode.Specific,
+                InputDeviceName = "Headset (Bluetooth)",
             };
 
             store.Save(config);

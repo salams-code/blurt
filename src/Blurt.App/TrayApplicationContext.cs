@@ -154,16 +154,29 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
     }
 
-    // Fail-soft microphone start (design §10, mode 1): opening the default
-    // capture device throws (NAudio) when there is no microphone or permission
-    // is denied. Catch it, surface a notice through the notifier, and return
-    // false so the down-handler simply doesn't enter recording — the app keeps
-    // running instead of crashing on a missing device.
+    // Fail-soft microphone start (design §10, mode 1): opening the capture device
+    // throws (NAudio) when there is no microphone or permission is denied. Catch it,
+    // surface a notice through the notifier, and return false so the down-handler
+    // simply doesn't enter recording — the app keeps running instead of crashing.
+    //
+    // Device selection (issue 16): read the configured InputDeviceMode + saved name
+    // and hand them to the recorder, which resolves them (Core's InputDeviceResolver)
+    // against the devices NAudio currently enumerates. FollowDefault re-opens the
+    // Windows default each press, so a newly-plugged Bluetooth headset just works.
+    // If a saved Specific device is gone, the resolver falls back to the default and
+    // flags it — surface that as a one-line warning while still recording.
     private bool TryStartRecording()
     {
+        var config = _settings.Load();
         try
         {
-            _recorder.Start();
+            var resolution = _recorder.Start(config.InputDeviceMode, config.InputDeviceName);
+            if (resolution.FellBack)
+            {
+                _notifier.Notify(
+                    $"Microphone \"{config.InputDeviceName}\" not found — using the default device.",
+                    NoticeLevel.Warning);
+            }
             return true;
         }
         catch (Exception ex)
