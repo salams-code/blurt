@@ -53,3 +53,14 @@ debug window) — no injection yet.
 ## Blocked by
 
 - 01 — Solution skeleton + tray that runs
+
+**2026-06-11 (agent):** Live check on the corporate laptop: the Hugging Face
+model download fails ("SSL connection could not be established" — corporate
+proxy/TLS interception). Two consequences handled:
+1. Bug fixed: the failed provisioning task was cached forever (`??=`), so every
+   later dictation refailed instantly until app restart. Provisioning now uses
+   `AsyncLazy<T>` (Core, unit-tested), which forgets failed attempts.
+2. Workaround for blocked networks: download `ggml-small-q5_1.bin` manually
+   (huggingface.co/ggerganov/whisper.cpp) into `%APPDATA%\Blurt\models\` —
+   provisioning then skips the download. A proper alternative source/setting
+   belongs to issue 12 (online transcription) / 14 (settings window).

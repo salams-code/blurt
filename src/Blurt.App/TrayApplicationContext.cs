@@ -17,7 +17,10 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     // Created lazily on the first dictation so the model download (first run
     // only) never happens before the user actually asks for a transcription.
-    private Task<LocalWhisper>? _transcriber;
+    // AsyncLazy forgets failed attempts: a failed download (e.g. blocked
+    // network) is retried on the next dictation instead of poisoning every
+    // attempt until app restart.
+    private readonly AsyncLazy<LocalWhisper> _transcriber;
 
     public TrayApplicationContext()
     {
@@ -40,6 +43,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
             new SendInputPasteKeystroke(),
             postPasteDelay: () => Task.Delay(TimeSpan.FromMilliseconds(300)));
 
+        _transcriber = new AsyncLazy<LocalWhisper>(ProvisionTranscriberAsync);
+
         _keyboardHook = new KeyboardHook();
         _keyboardHook.TriggerObserved += OnTriggerObserved;
         _keyboardHook.Install();
@@ -57,11 +62,12 @@ internal sealed class TrayApplicationContext : ApplicationContext
             return;
         }
 
+        // Icon swap + tooltip only — a balloon per keypress floods the Windows
+        // notification center. The real status display is issue 06's overlay.
         if (trigger.Edge == KeyEdge.Down)
         {
             _trayIcon.Icon = SystemIcons.Information;
             _trayIcon.Text = $"{AppInfo.Name} - {trigger.Kind} (down)";
-            _trayIcon.ShowBalloonTip(400, AppInfo.Name, $"{trigger.Kind} trigger down", ToolTipIcon.Info);
         }
         else
         {
@@ -109,7 +115,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         // CPU-heavy work runs on the thread pool to keep the tray responsive.
         try
         {
-            var transcriber = await GetTranscriberAsync();
+            var transcriber = await _transcriber.GetAsync();
             var text = await Task.Run(() => transcriber.TranscribeAsync(audio));
             _trayIcon.ShowBalloonTip(
                 5000,
@@ -127,8 +133,6 @@ internal sealed class TrayApplicationContext : ApplicationContext
             await audio.DisposeAsync();
         }
     }
-
-    private Task<LocalWhisper> GetTranscriberAsync() => _transcriber ??= ProvisionTranscriberAsync();
 
     private async Task<LocalWhisper> ProvisionTranscriberAsync()
     {
