@@ -381,11 +381,14 @@ internal sealed class TrayApplicationContext : ApplicationContext
             var transcriber = await _transcriber.GetAsync();
 
             // Build the refiner from current settings each time so a base
-            // URL/model/key change takes effect without an app restart. A missing
-            // key still yields a refiner — the pipeline falls back to raw text on
-            // the resulting auth failure, so the mode at least inserts the transcript.
+            // URL/model/provider/key change takes effect without an app restart. A
+            // missing key still yields a refiner — the pipeline falls back to raw
+            // text on the resulting auth failure, so the mode at least inserts the
+            // transcript. RefinerAuth gates the key by provider (issue 17): OpenAI
+            // sends the stored key, a Local/Ollama endpoint sends none while the key
+            // stays stored (it's never deleted on a provider switch).
             var config = _settings.Load();
-            var apiKey = _settings.LoadApiKey() ?? string.Empty;
+            var apiKey = RefinerAuth.KeyToSend(config.RefinementProvider, _settings.LoadApiKey());
             var refiner = new OpenAiCompatibleRefiner(
                 _httpClient, config.RefinementBaseUrl, config.RefinementModel, apiKey);
 

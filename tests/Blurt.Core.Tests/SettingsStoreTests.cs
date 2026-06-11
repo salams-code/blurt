@@ -56,6 +56,7 @@ public class SettingsStoreTests
             {
                 Transcription = TranscriptionMode.Online,
                 WhisperModel = new WhisperModel("base", "q5_1"),
+                RefinementProvider = RefinementProvider.LocalOpenAiCompatible,
                 RefinementBaseUrl = "http://localhost:11434/v1",
                 RefinementModel = "llama3.1",
                 HotkeyBindings = new Dictionary<TriggerKind, string>

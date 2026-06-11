@@ -63,6 +63,16 @@ internal partial class SettingsWindow : Window
         // The two local model sizes the design offers (issue 14: small/base).
         ModelSizeBox.ItemsSource = new[] { WhisperModel.Default, WhisperModel.Base };
 
+        // Refinement provider (issue 17): friendly labels over the enum so the local
+        // option reads clearly. SelectedValue carries the enum back on save.
+        RefinementProviderBox.DisplayMemberPath = nameof(ProviderChoice.Label);
+        RefinementProviderBox.SelectedValuePath = nameof(ProviderChoice.Value);
+        RefinementProviderBox.ItemsSource = new[]
+        {
+            new ProviderChoice("OpenAI", RefinementProvider.OpenAi),
+            new ProviderChoice("Local (Ollama, OpenAI-compatible)", RefinementProvider.LocalOpenAiCompatible),
+        };
+
         PopulateMicrophones();
     }
 
@@ -81,6 +91,10 @@ internal partial class SettingsWindow : Window
         MicrophoneBox.ItemsSource = choices;
     }
 
+    /// <summary>A label/enum pair so the provider combo shows friendly text but
+    /// maps straight back to the <see cref="RefinementProvider"/> on save.</summary>
+    private sealed record ProviderChoice(string Label, RefinementProvider Value);
+
     private void LoadFromConfig(BlurtConfig config)
     {
         TranscriptionSourceBox.SelectedItem = config.Transcription;
@@ -88,8 +102,10 @@ internal partial class SettingsWindow : Window
         ModelSizeBox.SelectedItem =
             config.WhisperModel.Size == WhisperModel.Base.Size ? WhisperModel.Base : WhisperModel.Default;
 
+        RefinementProviderBox.SelectedValue = config.RefinementProvider;
         BaseUrlBox.Text = config.RefinementBaseUrl;
         RefinementModelBox.Text = config.RefinementModel;
+        UpdateProviderHint();
 
         // Never surface the stored key. Show a placeholder when one exists; blank
         // means "no key yet / clear nothing". The hint adapts to which case it is.
@@ -141,6 +157,23 @@ internal partial class SettingsWindow : Window
     private static string ChordFor(BlurtConfig config, TriggerKind trigger) =>
         config.HotkeyBindings.TryGetValue(trigger, out var chord) ? chord : "";
 
+    // Switching providers only re-explains the endpoint/key contract — it never
+    // touches the stored key (the "(unchanged)" placeholder still preserves it on
+    // save) nor rewrites the base URL, which the user owns. The local path is
+    // keyless: leave the key blank and point the base URL at the Ollama endpoint.
+    private void OnRefinementProviderChanged(object sender, SelectionChangedEventArgs e)
+        => UpdateProviderHint();
+
+    private void UpdateProviderHint()
+    {
+        if (RefinementProviderBox.SelectedValue is not RefinementProvider provider)
+            return;
+
+        ProviderHint.Text = provider == RefinementProvider.LocalOpenAiCompatible
+            ? "Local endpoint (e.g. Ollama): set the base URL to http://<host>:11434/v1 and leave the API key empty. The stored key is kept but not sent."
+            : "OpenAI cloud: base URL https://api.openai.com/v1 and a stored API key are used.";
+    }
+
     private void OnSave(object sender, RoutedEventArgs e)
     {
         var config = BuildConfigFromFields();
@@ -181,6 +214,7 @@ internal partial class SettingsWindow : Window
         {
             Transcription = (TranscriptionMode)TranscriptionSourceBox.SelectedItem,
             WhisperModel = (WhisperModel)ModelSizeBox.SelectedItem,
+            RefinementProvider = (RefinementProvider)RefinementProviderBox.SelectedValue,
             RefinementBaseUrl = BaseUrlBox.Text.Trim(),
             RefinementModel = RefinementModelBox.Text.Trim(),
             HotkeyBindings = new Dictionary<TriggerKind, string>
