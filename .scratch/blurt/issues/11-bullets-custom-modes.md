@@ -1,6 +1,6 @@
 # 11 — Bullets + Custom modes in the Flex slot
 
-Status: ready-for-agent
+Status: ready-for-human
 Type: AFK
 
 ## Parent
@@ -26,3 +26,45 @@ three is currently selected; Pur still skips the refiner.
 
 - 07 — Tap-vs-hold detection + Flex-slot cycling
 - 09 — Refiner client (OpenAI-compatible) + Fix mode
+
+## Implementation note (handoff)
+
+Branch: `issue-11-bullets-custom-modes` (off `main`, full 09 + 07 baseline).
+
+What was built:
+
+- **Bullets prompt** — added `RefinementPrompts.Bullets`: a language-agnostic
+  system prompt that reformats the transcript into a `- ` bullet list, keeps the
+  input language (no translation), strips only filler/false starts, and returns
+  only the list (no heading/commentary).
+- **Mode → prompt selection** — new pure function
+  `FlexSlotPrompts.For(FlexSlotMode mode, BlurtConfig config) → string?` in
+  Blurt.Core. Pur → `null`; Bullets → `RefinementPrompts.Bullets`; Custom →
+  `config.CustomPrompt`. A blank prompt (Pur, or a Custom mode with no prompt set)
+  normalises to `null` — the agreed "no refiner" signal. Unit-tested in isolation.
+- **App wiring** — `OnFlexSlotTrigger`'s hold branch now calls
+  `FlexSlotPrompts.For(currentMode, _settings.Load())`. `null` → `DictateAsync`
+  (verbatim, zero network — keeps Pur's "zero refiner calls"); a non-null prompt
+  → the shared `RefineAndInjectAsync(audio, prompt)`. Empty Custom prompt is
+  fail-soft: a "No custom prompt set — inserting raw dictation." notice, then raw
+  dictation. Only `OnFlexSlotTrigger` changed; `RefineAndInjectAsync`,
+  `DictateAsync`, `OnFixTrigger`, `OnEnglishTrigger` untouched.
+
+Tests: +7 (68 Core total, all green; App builds with 0 warnings).
+- `RefinementPromptsTests` — Bullets prompt asserts bullet/language wording.
+- `FlexSlotPromptsTests` (new) — Pur→empty, Bullets→Bullets, Custom→stored,
+  empty Custom→empty.
+- `OpenAiCompatibleRefinerTests` — against the mock server (fake
+  `HttpMessageHandler`): the Bullets prompt and the stored Custom prompt each land
+  as the `system` message in the request body.
+
+Manual checks (live, on the corporate laptop — not automated):
+
+- [ ] Launch the app; tap `AltGr + -` until the tray shows **Bullets**, then hold
+      and dictate → bullet-point output is inserted at the cursor.
+- [ ] Tap once more to **Custom**, hold and dictate → uses the `CustomPrompt`
+      from `config.json` (set one first).
+- [ ] Custom with an empty `CustomPrompt` → notice balloon + raw transcript
+      inserted (no crash).
+- [ ] **Pur** in the same slot stays offline — hold and dictate works with no
+      network call.
