@@ -72,10 +72,23 @@ internal sealed class TrayApplicationContext : ApplicationContext
         menu.Items.Add("Settings…", image: null, (_, _) => OpenSettings());
         menu.Items.Add("Exit", image: null, (_, _) => ExitApp());
 
+        // First-run onboarding (issue 15): if no setup has been completed yet (fresh
+        // install → Default config with OnboardingCompleted=false), walk the guided
+        // wizard before the tray goes quiet. The flag it persists is the single
+        // source of truth, so this never runs again once finished. WPF shown modally
+        // on this WinForms STA thread (no second System.Windows.Application), exactly
+        // like the overlay/settings window. After it returns we reload so the saved
+        // config (e.g. a key, OnboardingCompleted=true) feeds the rest of start-up.
+        var config = _settings.Load();
+        if (Onboarding.IsNeeded(config))
+        {
+            RunOnboarding();
+            config = _settings.Load();
+        }
+
         // Read the overlay anchor and sound toggle at start-up. Both are now applied
         // live by the settings window (issue 14), but still loaded here as the
         // starting state.
-        var config = _settings.Load();
         _soundEnabled = config.SoundEnabled;
         _overlay = new OverlayController(config.OverlayAnchor);
 
@@ -479,6 +492,31 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         var modelPath = await provisioner.EnsureModelAsync(WhisperModel.Default);
         return new LocalWhisper(modelPath);
+    }
+
+    // Run the first-run wizard (issue 15) modally before the tray takes over. Built
+    // with the same SettingsStore (DPAPI key path) and a ModelProvisioner over the
+    // real ggml downloader as the transcriber uses — so a model fetched here is the
+    // very file the first dictation picks up. Shown with ShowDialog so start-up
+    // blocks until the user finishes; any failure inside is contained by the
+    // wizard's own fail-soft handling, but guard the show itself so a broken wizard
+    // can never stop the app from reaching the tray.
+    private void RunOnboarding()
+    {
+        try
+        {
+            var provisioner = new ModelProvisioner(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                new GgmlModelDownloader());
+            var window = new OnboardingWindow(_settings, provisioner);
+            window.ShowDialog();
+        }
+        catch (Exception ex)
+        {
+            // Never let onboarding block launch: fall through to the tray. The flow
+            // simply re-offers next start (OnboardingCompleted stays false).
+            System.Diagnostics.Debug.WriteLine($"Onboarding skipped: {ex}");
+        }
     }
 
     // Open the settings window (issue 14). Single instance: if one is already open,

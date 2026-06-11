@@ -80,6 +80,16 @@ public sealed record BlurtConfig
     /// <summary>Start/stop sound (off by default — meeting-friendly, design §9).</summary>
     public bool SoundEnabled { get; init; } = false;
 
+    /// <summary>
+    /// Whether the guided first-run onboarding (issue 15) has been completed. The
+    /// single source of truth for "run the wizard?": a fresh install has no
+    /// config.json, so <see cref="SettingsStore.Load"/> returns
+    /// <see cref="Default"/> with this <c>false</c> → onboarding is needed; the
+    /// wizard persists <c>true</c> on finish → it never runs again, even if the
+    /// user skipped the optional API key. Defaults to <c>false</c>.
+    /// </summary>
+    public bool OnboardingCompleted { get; init; } = false;
+
     /// <summary>The fully-defaulted configuration used when no config file exists yet.</summary>
     public static BlurtConfig Default { get; } = new();
 
@@ -99,6 +109,7 @@ public sealed record BlurtConfig
             && CustomPrompt == other.CustomPrompt
             && OverlayAnchor == other.OverlayAnchor
             && SoundEnabled == other.SoundEnabled
+            && OnboardingCompleted == other.OnboardingCompleted
             && HotkeyBindingsEqual(HotkeyBindings, other.HotkeyBindings)
             && FlexSlotOrder.SequenceEqual(other.FlexSlotOrder);
     }
@@ -113,6 +124,7 @@ public sealed record BlurtConfig
         hash.Add(CustomPrompt);
         hash.Add(OverlayAnchor);
         hash.Add(SoundEnabled);
+        hash.Add(OnboardingCompleted);
         foreach (var binding in HotkeyBindings.OrderBy(b => b.Key))
         {
             hash.Add(binding.Key);
