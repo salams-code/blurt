@@ -9,22 +9,46 @@ public sealed class TriggerResolver
 {
     private const int VkRMenu = 0xA5;      // right Alt — the "AltGr" half
 
-    // Default AltGr bindings (remappable later, issue 07+).
-    private static readonly IReadOnlyDictionary<int, TriggerKind> Bindings = new Dictionary<int, TriggerKind>
-    {
-        [0xBC] = TriggerKind.Fix,       // ','
-        [0xBE] = TriggerKind.English,   // '.'
-        [0xBD] = TriggerKind.FlexSlot,  // '-'
-    };
+    /// <summary>
+    /// The design-default AltGr bindings. The parameterless constructor uses
+    /// these; the settings window builds a custom map from the persisted config
+    /// (see <see cref="HotkeyBindings.ResolveVkMap"/>) when the user remaps.
+    /// </summary>
+    public static IReadOnlyDictionary<int, TriggerKind> DefaultBindings { get; } =
+        new Dictionary<int, TriggerKind>
+        {
+            [0xBC] = TriggerKind.Fix,       // ','
+            [0xBE] = TriggerKind.English,   // '.'
+            [0xBD] = TriggerKind.FlexSlot,  // '-'
+        };
 
     private static readonly KeyDecision PassThrough = new(Swallow: false, Trigger: null);
     private static readonly KeyDecision SwallowSilently = new(Swallow: true, Trigger: null);
+
+    // Per-instance so a remap installs a fresh resolver with its own map (the hook
+    // is re-created on save), and the defaults stay shared and immutable.
+    private readonly IReadOnlyDictionary<int, TriggerKind> _bindings;
 
     private bool _rightAltDown;
 
     // The trigger key currently held down, so its release is swallowed too —
     // even if AltGr was let go first (otherwise the character leaks on key-up).
     private (int Vk, TriggerKind Kind)? _activeTrigger;
+
+    /// <summary>Resolves triggers from the design-default AltGr bindings.</summary>
+    public TriggerResolver() : this(DefaultBindings)
+    {
+    }
+
+    /// <summary>
+    /// Resolves triggers from a custom virtual-key → trigger map (e.g. one built
+    /// from the user's remapped config). The map is used as-is — provide the full
+    /// set of bindings, not a delta over the defaults.
+    /// </summary>
+    public TriggerResolver(IReadOnlyDictionary<int, TriggerKind> bindings)
+    {
+        _bindings = bindings;
+    }
 
     public KeyDecision Process(KeyInput input)
     {
@@ -53,7 +77,7 @@ public sealed class TriggerResolver
 
         if (input.Edge == KeyEdge.Down
             && _rightAltDown
-            && Bindings.TryGetValue(input.VirtualKeyCode, out var kind))
+            && _bindings.TryGetValue(input.VirtualKeyCode, out var kind))
         {
             _activeTrigger = (input.VirtualKeyCode, kind);
             return new KeyDecision(Swallow: true, new TriggerEvent(kind, KeyEdge.Down));

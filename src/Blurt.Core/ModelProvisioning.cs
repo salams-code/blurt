@@ -14,6 +14,13 @@ public sealed record WhisperModel(string Size, string Quantization)
     /// </summary>
     public static WhisperModel Default { get; } = new("small", "q5_1");
 
+    /// <summary>
+    /// The smaller, faster local option the settings window offers alongside
+    /// <see cref="Default"/>: <c>base</c> quantized to q5_1 (~60 MB, quicker but
+    /// less accurate). Lets the user trade accuracy for latency.
+    /// </summary>
+    public static WhisperModel Base { get; } = new("base", "q5_1");
+
     /// <summary>File name as published in the ggerganov/whisper.cpp model repo.</summary>
     public string FileName => $"ggml-{Size}-{Quantization}.bin";
 }
