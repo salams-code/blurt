@@ -15,6 +15,14 @@ public enum DictationOutcome
 
     /// <summary>Transcription threw — fail-soft, nothing injected.</summary>
     TranscriptionFailed,
+
+    /// <summary>
+    /// The refiner endpoint was unreachable (or otherwise failed), so the raw
+    /// transcript was injected instead of the refined text. Fail-soft: the
+    /// dictation still lands at the cursor; the caller surfaces a "refinement
+    /// offline" notice.
+    /// </summary>
+    RefinedOffline,
 }
 
 /// <summary>
@@ -64,20 +72,35 @@ public sealed class DictationPipeline
             return DictationOutcome.TranscriptionFailed;
         }
 
-        // Refinement insertion point. Null in Pur mode (verbatim, zero network);
-        // a later mode supplies a transform here without changing this method.
-        if (_refine is not null)
-        {
-            text = await _refine(text, ct);
-        }
-
+        // A non-speech transcript is silence regardless of refinement — guard
+        // before the network round-trip so an empty utterance never reaches the
+        // refiner and a refiner failure can't resurrect a "[BLANK_AUDIO]" marker
+        // as the raw fallback below.
         if (IsNonSpeech(text))
         {
             return DictationOutcome.NothingTranscribed;
         }
 
+        // Refinement insertion point. Null in Pur mode (verbatim, zero network);
+        // a later mode supplies a transform here without changing this method.
+        // Fail-soft: if the refiner is unreachable, inject the raw transcript
+        // rather than losing the dictation, and signal it so the caller can
+        // surface a "refinement offline" notice.
+        var refinedOffline = false;
+        if (_refine is not null)
+        {
+            try
+            {
+                text = await _refine(text, ct);
+            }
+            catch
+            {
+                refinedOffline = true;
+            }
+        }
+
         await _injector.InjectAsync(text, ct);
-        return DictationOutcome.Injected;
+        return refinedOffline ? DictationOutcome.RefinedOffline : DictationOutcome.Injected;
     }
 
     // Whisper never returns an empty string for silence or background noise; it
