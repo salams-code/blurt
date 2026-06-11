@@ -82,6 +82,34 @@ public class SettingsStoreTests
     }
 
     [Fact]
+    public void Onboarding_completed_flag_round_trips_both_ways()
+    {
+        var root = TempRoot();
+        try
+        {
+            var store = new SettingsStore(root, new FlipProtector());
+
+            // Default config (onboarding not yet done) round-trips as not-completed.
+            store.Save(BlurtConfig.Default);
+            Assert.False(store.Load().OnboardingCompleted);
+
+            // And once the wizard marks it done, that survives the JSON round-trip —
+            // proving the flag is in the overridden Equals/GetHashCode (otherwise the
+            // round-trip equality below would fail).
+            var completed = BlurtConfig.Default with { OnboardingCompleted = true };
+            store.Save(completed);
+            var loaded = store.Load();
+            Assert.True(loaded.OnboardingCompleted);
+            Assert.Equal(completed, loaded);
+            Assert.NotEqual(BlurtConfig.Default, loaded);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public void Config_is_written_as_readable_json_at_the_expected_path()
     {
         var root = TempRoot();
