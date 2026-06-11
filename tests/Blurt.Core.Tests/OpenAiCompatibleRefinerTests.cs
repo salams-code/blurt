@@ -157,6 +157,51 @@ public class OpenAiCompatibleRefinerTests
         Assert.Equal("ähm hallo welt", injector.InjectedText);
     }
 
+    [Fact]
+    public async Task Sends_the_bullets_prompt_as_the_system_message_for_the_bullets_mode()
+    {
+        // Selecting Bullets must put RefinementPrompts.Bullets on the wire as the
+        // system message — the automated half of "Bullets sends the bullets prompt".
+        var handler = new CapturingHandler(ResponseWithContent("- erste Notiz\n- zweite Notiz"));
+        var refiner = new OpenAiCompatibleRefiner(
+            new HttpClient(handler),
+            baseUrl: "https://api.openai.com/v1",
+            model: "gpt-4o-mini",
+            apiKey: "sk");
+
+        var bulletsPrompt = FlexSlotPrompts.For(FlexSlotMode.Bullets, BlurtConfig.Default);
+        Assert.NotNull(bulletsPrompt);   // Bullets always carries a prompt (not "no refiner")
+        await refiner.RefineAsync("erste notiz zweite notiz", bulletsPrompt);
+
+        using var doc = JsonDocument.Parse(handler.RequestBody!);
+        var messages = doc.RootElement.GetProperty("messages");
+        Assert.Equal("system", messages[0].GetProperty("role").GetString());
+        Assert.Equal(RefinementPrompts.Bullets, messages[0].GetProperty("content").GetString());
+        Assert.Equal("erste notiz zweite notiz", messages[1].GetProperty("content").GetString());
+    }
+
+    [Fact]
+    public async Task Sends_the_stored_custom_prompt_as_the_system_message_for_the_custom_mode()
+    {
+        // Selecting Custom must put the settings-stored prompt on the wire — the
+        // automated half of "Custom sends the stored custom prompt".
+        var handler = new CapturingHandler(ResponseWithContent("done"));
+        var refiner = new OpenAiCompatibleRefiner(
+            new HttpClient(handler),
+            baseUrl: "https://api.openai.com/v1",
+            model: "gpt-4o-mini",
+            apiKey: "sk");
+
+        var config = BlurtConfig.Default with { CustomPrompt = "Rewrite as a haiku." };
+        var customPrompt = FlexSlotPrompts.For(FlexSlotMode.Custom, config);
+        Assert.NotNull(customPrompt);   // a set custom prompt is never "no refiner"
+        await refiner.RefineAsync("some dictated text", customPrompt);
+
+        using var doc = JsonDocument.Parse(handler.RequestBody!);
+        var messages = doc.RootElement.GetProperty("messages");
+        Assert.Equal("Rewrite as a haiku.", messages[0].GetProperty("content").GetString());
+    }
+
     // --- helpers ---
 
     private static HttpResponseMessage ResponseWithContent(string content)

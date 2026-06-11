@@ -119,11 +119,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _ = DictateAsync(audio);   // fire-and-forget; outcome surfaces as a balloon only when notable
     }
 
-    // Flex-slot push-to-talk (issue 07). Down starts recording and stamps the
+    // Flex-slot push-to-talk (issue 07 + 11). Down starts recording and stamps the
     // press time; up measures the held duration and lets TapHoldClassifier
     // decide: a tap discards the take and cycles the mode (tray shows the new
-    // one), a hold transcribes. Only Pur dictates for real this slice — Bullets
-    // and Custom land in issue 11, so a hold in those modes shows a notice.
+    // one), a hold transcribes with whichever mode is selected — Pur verbatim,
+    // Bullets/Custom through the refiner (FlexSlotPrompts picks the prompt).
     private void OnFlexSlotTrigger(KeyEdge edge)
     {
         if (edge == KeyEdge.Down)
@@ -164,21 +164,32 @@ internal sealed class TrayApplicationContext : ApplicationContext
             return;
         }
 
-        // Hold: dictate with the current mode.
+        // Hold: dictate with the current mode. FlexSlotPrompts resolves the system
+        // prompt for the mode: Pur and an unset Custom yield null ("no refiner"),
+        // so those go through verbatim DictateAsync (zero network); Bullets and a
+        // configured Custom carry a prompt and run RefineAndInjectAsync.
         var audio = _recorder.Stop();
-        if (_flexSlotCycle.Current == FlexSlotMode.Pur)
+        var currentMode = _flexSlotCycle.Current;
+        var prompt = FlexSlotPrompts.For(currentMode, _settings.Load());
+
+        if (prompt is null)
         {
-            _ = DictateAsync(audio);   // Pur path: verbatim, no refinement (same as English)
+            // No refiner for this mode. Custom with an empty prompt still inserts
+            // the raw transcript (fail-soft) but first nudges the user to set one.
+            if (currentMode == FlexSlotMode.Custom)
+            {
+                _trayIcon.ShowBalloonTip(
+                    3000,
+                    AppInfo.Name,
+                    "No custom prompt set — inserting raw dictation.",
+                    ToolTipIcon.Info);
+            }
+
+            _ = DictateAsync(audio);   // verbatim, no refinement (same as English/Pur)
         }
         else
         {
-            // Bullets/Custom are not wired to a refinement step yet (issue 11).
-            audio.Dispose();
-            _trayIcon.ShowBalloonTip(
-                3000,
-                AppInfo.Name,
-                $"{_flexSlotCycle.Current} mode not available yet.",
-                ToolTipIcon.Info);
+            _ = RefineAndInjectAsync(audio, prompt);   // Bullets / configured Custom
         }
     }
 

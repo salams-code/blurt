@@ -3,8 +3,9 @@ namespace Blurt.Core;
 /// <summary>
 /// The system prompts that drive each refined dictation mode. Kept as a small,
 /// pure source of strings (no I/O, no dependencies) so the exact wording is one
-/// reviewable place and is unit-testable. A later mode registry (issue 11) will
-/// pair these with their triggers; for now only the Fix prompt exists.
+/// reviewable place and is unit-testable. <see cref="FlexSlotPrompts"/> pairs
+/// these with the Flex-slot modes; the Custom mode has no constant here because
+/// its prompt comes from the user's <see cref="BlurtConfig.CustomPrompt"/>.
 /// </summary>
 public static class RefinementPrompts
 {
@@ -22,4 +23,20 @@ public static class RefinementPrompts
         "meaning, tone and wording as much as possible — do not translate, answer, " +
         "summarise or add anything. Always respond in German with only the cleaned-up " +
         "text and no extra explanation.";
+
+    /// <summary>
+    /// The Bullets-mode system prompt: turn a free-flowing dictation into a tidy
+    /// bullet list. Unlike Fix it is language-agnostic — it keeps whatever
+    /// language the speaker used — and it reshapes the text into bullets rather
+    /// than just cleaning it up. The model returns only the bullet list, with no
+    /// heading, preamble or trailing commentary, so the result drops straight in
+    /// at the cursor.
+    /// </summary>
+    public const string Bullets =
+        "You are a formatting assistant. Reformat the user's dictated transcript " +
+        "into concise, well-structured bullet points. Keep the original language " +
+        "of the input — do not translate. Preserve all the meaning, remove only " +
+        "filler words and false starts, and do not answer, summarise away detail, " +
+        "or add anything not in the transcript. Respond with only the bullet list " +
+        "(one \"- \" item per line) and no heading or extra explanation.";
 }
