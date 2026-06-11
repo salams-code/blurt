@@ -66,14 +66,24 @@
                             <ColumnDefinition Width="150" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Local model size" />
-                        <ComboBox x:Name="ModelSizeBox" Grid.Column="1" />
+                        <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Local model" />
+                        <ComboBox x:Name="ModelSizeBox" Grid.Column="1"
+                                  SelectionChanged="OnModelSelectionChanged" />
                     </Grid>
-                    <TextBlock Margin="0,8,0,0"
+                    <!-- Per-selection manual-install guidance (issue 18): the exact file,
+                         a working link, and the target folder, all derived from whatever
+                         model is selected — so a hand install matches what Blurt loads.
+                         Populated in OnModelSelectionChanged from the selected WhisperModel. -->
+                    <TextBlock x:Name="ModelDownloadHint"
+                               Margin="150,8,0,0"
+                               TextWrapping="Wrap"
+                               Foreground="#FF606060"
+                               FontSize="11" />
+                    <TextBlock Margin="150,4,0,0"
                                TextWrapping="Wrap"
                                Foreground="#FF808080"
                                FontSize="11"
-                               Text="Changing the source or model size takes effect after a restart." />
+                               Text="Changing the source or model takes effect after a restart." />
                 </StackPanel>
             </Border>
 

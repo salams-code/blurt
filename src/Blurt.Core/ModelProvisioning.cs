@@ -15,14 +15,25 @@ public sealed record WhisperModel(string Size, string Quantization)
     public static WhisperModel Default { get; } = new("small", "q5_1");
 
     /// <summary>
-    /// The smaller, faster local option the settings window offers alongside
-    /// <see cref="Default"/>: <c>base</c> quantized to q5_1 (~60 MB, quicker but
-    /// less accurate). Lets the user trade accuracy for latency.
+    /// The higher-quality local option the settings window offers alongside
+    /// <see cref="Default"/>: <c>large-v3-turbo</c> quantized to q5_0 (~574 MB,
+    /// markedly more accurate, still turbo-fast). Lets the user trade size/latency
+    /// for accuracy. The <c>q5_0</c> suffix is the exact quantization published in
+    /// the ggerganov/whisper.cpp repo for this model (turbo has no q5_1 variant).
     /// </summary>
-    public static WhisperModel Base { get; } = new("base", "q5_1");
+    public static WhisperModel Turbo { get; } = new("large-v3-turbo", "q5_0");
 
     /// <summary>File name as published in the ggerganov/whisper.cpp model repo.</summary>
     public string FileName => $"ggml-{Size}-{Quantization}.bin";
+
+    /// <summary>
+    /// Canonical Hugging Face <c>resolve</c> URL the model file can be downloaded
+    /// from. Because the corporate proxy blocks the in-app download, the UI shows
+    /// this link so the matching file can be installed by hand — derived from the
+    /// selection, so it always points at the file the app expects.
+    /// </summary>
+    public string DownloadUrl =>
+        $"https://huggingface.co/ggerganov/whisper.cpp/resolve/main/{FileName}";
 }
 
 /// <summary>
@@ -55,6 +66,13 @@ public sealed class ModelProvisioner
         _modelsDirectory = Path.Combine(appDataRoot, AppInfo.Name, "models");
         _downloader = downloader;
     }
+
+    /// <summary>
+    /// The folder all models live in (<c>&lt;appDataRoot&gt;\Blurt\models</c>).
+    /// Surfaced so the UI can show it as the target for a manual install (issue 18)
+    /// without re-deriving the path and risking a mismatch with <see cref="ResolvePath"/>.
+    /// </summary>
+    public string ModelsDirectory => _modelsDirectory;
 
     /// <summary>Absolute path the given model lives at (whether or not it exists yet).</summary>
     public string ResolvePath(WhisperModel model) => Path.Combine(_modelsDirectory, model.FileName);

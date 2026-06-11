@@ -51,16 +51,28 @@ internal partial class SettingsWindow : Window
     {
         TranscriptionSourceBox.ItemsSource = new[] { TranscriptionMode.Local, TranscriptionMode.Online };
         OverlayAnchorBox.ItemsSource = new[] { OverlayAnchor.MousePointer, OverlayAnchor.BottomCenter };
-        // The two local model sizes the design offers (issue 14: small/base).
-        ModelSizeBox.ItemsSource = new[] { WhisperModel.Default, WhisperModel.Base };
+        // The two local models offered (issue 18): the small default and the
+        // higher-quality large-v3-turbo. The combo renders each model's Size.
+        ModelSizeBox.ItemsSource = ModelChoices;
+        ModelSizeBox.DisplayMemberPath = nameof(WhisperModel.Size);
     }
+
+    // The local models the window offers, in display order. The download guidance
+    // and the load-back match (LoadFromConfig) both derive from this one list, so
+    // adding a model is a single edit and a stored, now-unknown size (e.g. the
+    // removed "base") simply falls back to the first entry.
+    private static readonly WhisperModel[] ModelChoices = [WhisperModel.Default, WhisperModel.Turbo];
 
     private void LoadFromConfig(BlurtConfig config)
     {
         TranscriptionSourceBox.SelectedItem = config.Transcription;
-        // Match the stored model by size so a hand-edited quantization still selects.
+        // Match the stored model by size against the offered list so a hand-edited
+        // quantization still selects the right entry. A stored size that matches no
+        // option — e.g. a legacy "base" config (issue 18 removed that model) — falls
+        // back to the small default rather than crashing or leaving a blank combo.
         ModelSizeBox.SelectedItem =
-            config.WhisperModel.Size == WhisperModel.Base.Size ? WhisperModel.Base : WhisperModel.Default;
+            ModelChoices.FirstOrDefault(m => m.Size == config.WhisperModel.Size)
+            ?? WhisperModel.Default;
 
         BaseUrlBox.Text = config.RefinementBaseUrl;
         RefinementModelBox.Text = config.RefinementModel;
@@ -82,6 +94,37 @@ internal partial class SettingsWindow : Window
 
         OverlayAnchorBox.SelectedItem = config.OverlayAnchor;
         SoundEnabledBox.IsChecked = config.SoundEnabled;
+    }
+
+    // Refresh the per-selection manual-install guidance (issue 18) whenever the
+    // model selection changes (and once on load). Because the in-app download is
+    // blocked by the corporate proxy, colleagues install the file by hand — so we
+    // show the exact filename, the working resolve link, and the target folder, all
+    // derived from the selected model. Never hardcoded to one model.
+    private void OnModelSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (ModelSizeBox.SelectedItem is not WhisperModel model)
+            return;
+
+        ModelDownloadHint.Text =
+            $"To install by hand, download {model.FileName} from {model.DownloadUrl} " +
+            $"and place it in {ModelsDirectory}.";
+    }
+
+    // Where the runtime expects model files — derived the same way the provisioner
+    // does (issue 18), so the folder shown here is exactly where Blurt loads from.
+    private static string ModelsDirectory =>
+        new ModelProvisioner(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            NoopDownloader.Instance).ModelsDirectory;
+
+    // The provisioner needs a downloader to construct, but the settings window only
+    // reads its ModelsDirectory — never downloads — so a no-op stand-in is enough.
+    private sealed class NoopDownloader : IModelDownloader
+    {
+        public static readonly NoopDownloader Instance = new();
+        public Task DownloadAsync(WhisperModel model, string targetPath, CancellationToken ct = default)
+            => Task.CompletedTask;
     }
 
     private static string ChordFor(BlurtConfig config, TriggerKind trigger) =>

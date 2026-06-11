@@ -257,9 +257,12 @@ internal partial class OnboardingWindow : Window
 
     // --- Step 3: model (present → skip; missing → fail-soft download) -------
 
+    // Check the SELECTED model (issue 18), not a hardcoded small. Whatever the
+    // config specifies drives the presence check, the expected filename, and the
+    // manual-install guidance — so what onboarding shows matches what the app loads.
     private async Task CheckModelAsync()
     {
-        var model = WhisperModel.Default;
+        var model = _config.WhisperModel;
 
         if (_provisioner.IsModelPresent(model))
         {
@@ -271,20 +274,20 @@ internal partial class OnboardingWindow : Window
             return;
         }
 
-        ModelStatus.Text = $"The {model.Size} model (~460 MB) isn't installed yet.";
+        ModelStatus.Text = $"The {model.Size} model isn't installed yet.";
         DownloadButton.Visibility = Visibility.Visible;
         DownloadButton.IsEnabled = true;
-        ModelHint.Text = "Downloading needs internet access. You can also continue and add it later.";
+        ModelHint.Text = ManualInstallHint(model);
         await Task.CompletedTask;
     }
 
     private async void OnDownloadModel(object sender, RoutedEventArgs e)
     {
-        var model = WhisperModel.Default;
+        var model = _config.WhisperModel;
         DownloadButton.IsEnabled = false;
         ModelProgress.Visibility = Visibility.Visible;
         ModelProgress.IsIndeterminate = true;
-        ModelStatus.Text = $"Downloading the {model.Size} model (~460 MB)…";
+        ModelStatus.Text = $"Downloading the {model.Size} model…";
         ModelHint.Text = "This can take a few minutes on first run.";
 
         try
@@ -301,16 +304,24 @@ internal partial class OnboardingWindow : Window
             // Fail-soft: a blocked proxy / no connection must not trap the user.
             // They can retry here or continue; the runtime re-attempts the download
             // on the first dictation anyway (AsyncLazy forgets failed attempts).
+            // The manual-install guidance (exact file, link, folder) lets a blocked
+            // colleague install the matching file by hand.
             ModelProgress.Visibility = Visibility.Collapsed;
             ModelStatus.Text = "Download failed.";
             DownloadButton.Content = "Retry";
             DownloadButton.Visibility = Visibility.Visible;
             DownloadButton.IsEnabled = true;
-            ModelHint.Text =
-                $"{ex.Message}  You can retry, add the model manually later, or continue — " +
-                "Blurt will try again on your first dictation.";
+            ModelHint.Text = $"{ex.Message}  {ManualInstallHint(model)}";
         }
     }
+
+    // Per-selection manual-install guidance (issue 18): the exact filename, a working
+    // resolve link, and the target folder, all derived from the selected model so a
+    // hand install matches what Blurt loads. The corporate proxy blocks the in-app
+    // download, so this is the path colleagues actually use.
+    private string ManualInstallHint(WhisperModel model) =>
+        $"If the download is blocked, get {model.FileName} from {model.DownloadUrl} " +
+        $"and place it in {_provisioner.ModelsDirectory} — then continue.";
 
     // --- Step 4: hotkeys ----------------------------------------------------
 
