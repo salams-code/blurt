@@ -27,3 +27,15 @@ public interface IPasteKeystroke
 {
     bool SendPaste();
 }
+
+/// <summary>
+/// Inserts text at the focused app's cursor. The seam that lets the dictation
+/// pipeline depend on injection without binding to the concrete
+/// <see cref="TextInjector"/>, so it can be faked in tests. Returns false when
+/// the text could not be delivered (the paste keystroke failed); the text is
+/// then left on the clipboard so it is never silently lost.
+/// </summary>
+public interface ITextInjector
+{
+    Task<bool> InjectAsync(string text, CancellationToken ct = default);
+}
