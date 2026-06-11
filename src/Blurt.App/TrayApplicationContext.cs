@@ -246,10 +246,14 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
 
         var audio = _recorder.Stop();
-        _ = FixAsync(audio);   // fire-and-forget; outcome surfaces as a balloon only when notable
+        _ = RefineAndInjectAsync(audio, RefinementPrompts.Fix);   // fire-and-forget; outcome surfaces as a balloon only when notable
     }
 
-    private async Task FixAsync(Stream audio)
+    // Shared refined-dictation path: transcribe locally, then refine the text
+    // through the OpenAI-compatible endpoint with the given <paramref name="systemPrompt"/>
+    // before injecting. Used by every LLM mode (Fix, English, Bullets, Custom) —
+    // only the prompt differs. Only text crosses the network, never audio.
+    private async Task RefineAndInjectAsync(Stream audio, string systemPrompt)
     {
         // Starts on the UI thread (the hook delivers events there), so every
         // await resumes on it — balloon calls below are safe.
@@ -260,20 +264,20 @@ internal sealed class TrayApplicationContext : ApplicationContext
             // Build the refiner from current settings each time so a base
             // URL/model/key change takes effect without an app restart. A missing
             // key still yields a refiner — the pipeline falls back to raw text on
-            // the resulting auth failure, so Fix at least inserts the transcript.
+            // the resulting auth failure, so the mode at least inserts the transcript.
             var config = _settings.Load();
             var apiKey = _settings.LoadApiKey() ?? string.Empty;
             var refiner = new OpenAiCompatibleRefiner(
                 _httpClient, config.RefinementBaseUrl, config.RefinementModel, apiKey);
 
-            // Refined mode: the delegate runs the Fix prompt over the transcript
+            // Refined mode: the delegate runs the given prompt over the transcript
             // between transcription and injection. Only text crosses the network —
             // never audio. On an unreachable endpoint the pipeline injects the raw
             // transcript and reports RefinedOffline (handled below).
             var pipeline = new DictationPipeline(
                 new OffloadedTranscriber(transcriber),
                 _textInjector,
-                refine: (text, ct) => refiner.RefineAsync(text, RefinementPrompts.Fix, ct));
+                refine: (text, ct) => refiner.RefineAsync(text, systemPrompt, ct));
 
             var outcome = await pipeline.RunAsync(audio);
 
