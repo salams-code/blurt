@@ -16,9 +16,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
     // Status feedback (issue 06): the click-through overlay pill and the colour-
     // coded tray icons, both driven from Core's pure OverlayState/TrayState/
     // TrayPalette so listening/transcribing show in sync on overlay and tray.
-    private readonly OverlayController _overlay;
+    // Overlay and sound are not readonly: the settings window (issue 14) updates
+    // them live on save (the anchor by swapping in a new controller).
+    private OverlayController _overlay;
     private readonly TrayIcons _trayIcons = new();
-    private readonly bool _soundEnabled;
+    private bool _soundEnabled;
 
     // The single fail-soft surface (issue 13): every notice — outcome balloons,
     // provisioning failures, the no-mic warning, flex-slot hints — goes through
@@ -27,7 +29,14 @@ internal sealed class TrayApplicationContext : ApplicationContext
     // plugs into TrayNotifier without touching these call sites.
     private readonly INotifier _notifier;
 
-    private readonly KeyboardHook _keyboardHook;
+    // Not readonly: a hotkey remap (issue 14) disposes this hook and installs a
+    // fresh one built from the new bindings, so remapped triggers take effect live.
+    private KeyboardHook _keyboardHook;
+
+    // Single live settings window (issue 14): reopening brings the existing one to
+    // the front instead of stacking duplicates. Null when closed.
+    private SettingsWindow? _settingsWindow;
+
     private readonly TextInjector _textInjector;
     private readonly AudioRecorder _recorder = new();
 
@@ -60,10 +69,12 @@ internal sealed class TrayApplicationContext : ApplicationContext
     public TrayApplicationContext()
     {
         var menu = new ContextMenuStrip();
+        menu.Items.Add("Settings…", image: null, (_, _) => OpenSettings());
         menu.Items.Add("Exit", image: null, (_, _) => ExitApp());
 
-        // Read the overlay anchor and sound toggle once at start-up; both are
-        // stable user preferences (a restart picks up a change, like the hotkeys).
+        // Read the overlay anchor and sound toggle at start-up. Both are now applied
+        // live by the settings window (issue 14), but still loaded here as the
+        // starting state.
         var config = _settings.Load();
         _soundEnabled = config.SoundEnabled;
         _overlay = new OverlayController(config.OverlayAnchor);
@@ -87,9 +98,22 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         _transcriber = new AsyncLazy<LocalWhisper>(ProvisionTranscriberAsync);
 
-        _keyboardHook = new KeyboardHook();
-        _keyboardHook.TriggerObserved += OnTriggerObserved;
-        _keyboardHook.Install();
+        // Build the hook from the persisted hotkey bindings (issue 14): the resolver
+        // gets the configured VK→trigger map, falling back to defaults for any
+        // missing/garbage entry, so a remapped chord works from launch.
+        _keyboardHook = InstallHook(config);
+    }
+
+    // Create, wire, and install a keyboard hook whose resolver uses the hotkey
+    // bindings from the given config. Used at start-up and again whenever the
+    // settings window remaps the hotkeys (the old hook is disposed first).
+    private KeyboardHook InstallHook(BlurtConfig config)
+    {
+        var resolver = new TriggerResolver(HotkeyBindings.ResolveVkMap(config));
+        var hook = new KeyboardHook(resolver);
+        hook.TriggerObserved += OnTriggerObserved;
+        hook.Install();
+        return hook;
     }
 
     // Pure dispatcher: each trigger owns its own handler so their record/
@@ -457,8 +481,59 @@ internal sealed class TrayApplicationContext : ApplicationContext
         return new LocalWhisper(modelPath);
     }
 
+    // Open the settings window (issue 14). Single instance: if one is already open,
+    // bring it to the front instead of stacking a duplicate. The WPF window is shown
+    // non-modally from the WinForms STA thread it shares with the rest of the UI —
+    // no second System.Windows.Application is created (the overlay already proved
+    // WPF and WinForms coexist on this one thread). On a successful save the runtime
+    // is re-wired in ApplySettings via the window's Closed callback.
+    private void OpenSettings()
+    {
+        if (_settingsWindow is { } existing)
+        {
+            existing.Activate();
+            return;
+        }
+
+        var window = new SettingsWindow(_settings);
+        _settingsWindow = window;
+        window.Closed += (_, _) =>
+        {
+            // Apply only on a genuine save (DialogResult true + a captured config).
+            if (window.DialogResult == true && window.SavedConfig is { } saved)
+            {
+                ApplySettings(saved);
+            }
+            _settingsWindow = null;
+        };
+        window.Show();
+    }
+
+    // Apply a freshly-saved config to the running app. Hotkeys, overlay anchor, and
+    // sound take effect live; what cannot (transcription source, model size) is
+    // persisted now and picked up on the next launch.
+    private void ApplySettings(BlurtConfig config)
+    {
+        // Hotkeys: re-create the hook from the new bindings so remapped chords fire
+        // and the old ones no longer do. Dispose the old hook (uninstalls it) first.
+        _keyboardHook.Dispose();
+        _keyboardHook = InstallHook(config);
+
+        // Overlay anchor: the controller captures the anchor at construction, so swap
+        // in a fresh one (closing the old window) for the change to take effect.
+        _overlay.Dispose();
+        _overlay = new OverlayController(config.OverlayAnchor);
+
+        // Sound flag: read live on each PlaySound, so just update the field.
+        _soundEnabled = config.SoundEnabled;
+
+        // Transcription source and local model size feed the transcriber, which is
+        // provisioned once lazily — those changes apply on the next launch.
+    }
+
     private void ExitApp()
     {
+        _settingsWindow?.Close();
         _trayIcon.Visible = false;
         Application.Exit();
     }

@@ -22,15 +22,26 @@ internal sealed class KeyboardHook : IDisposable
     private const int WM_SYSKEYDOWN = 0x0104;   // keys pressed while Alt is held
     private const int WM_SYSKEYUP = 0x0105;
 
-    private readonly TriggerResolver _resolver = new();
+    private readonly TriggerResolver _resolver;
     private readonly LowLevelKeyboardProc _proc;   // held in a field so the GC never collects the callback
     private IntPtr _hookHandle;
 
     /// <summary>Raised on each recognised Blurt trigger (down and up), on the UI thread.</summary>
     public event Action<TriggerEvent>? TriggerObserved;
 
-    public KeyboardHook()
+    /// <summary>Installs with the design-default AltGr bindings.</summary>
+    public KeyboardHook() : this(new TriggerResolver())
     {
+    }
+
+    /// <summary>
+    /// Installs with a specific <see cref="TriggerResolver"/>, so a settings change
+    /// can re-create the hook with the user's remapped hotkeys: dispose the old
+    /// hook and install a new one built from the updated bindings.
+    /// </summary>
+    public KeyboardHook(TriggerResolver resolver)
+    {
+        _resolver = resolver;
         _proc = HookCallback;
     }
 
