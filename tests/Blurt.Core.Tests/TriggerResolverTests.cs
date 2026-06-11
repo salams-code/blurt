@@ -118,4 +118,36 @@ public class TriggerResolverTests
         Assert.False(decision.Swallow);
         Assert.Null(decision.Trigger);
     }
+
+    [Fact]
+    public void Custom_bindings_resolve_the_remapped_vk_to_its_trigger()
+    {
+        const int vkF1 = 0x70; // a key the defaults never bind
+        var resolver = new TriggerResolver(new Dictionary<int, TriggerKind>
+        {
+            [vkF1] = TriggerKind.Fix,
+        });
+
+        resolver.Process(new KeyInput(VkRMenu, KeyEdge.Down));
+        var decision = resolver.Process(new KeyInput(vkF1, KeyEdge.Down));
+
+        Assert.True(decision.Swallow);
+        Assert.Equal(new TriggerEvent(TriggerKind.Fix, KeyEdge.Down), decision.Trigger);
+    }
+
+    [Fact]
+    public void Custom_bindings_ignore_a_vk_the_defaults_used_to_map()
+    {
+        // Remap Fix onto F1 only: the old default ',' must no longer trigger.
+        var resolver = new TriggerResolver(new Dictionary<int, TriggerKind>
+        {
+            [0x70] = TriggerKind.Fix,
+        });
+
+        resolver.Process(new KeyInput(VkRMenu, KeyEdge.Down));
+        var decision = resolver.Process(new KeyInput(VkOemComma, KeyEdge.Down));
+
+        Assert.False(decision.Swallow);
+        Assert.Null(decision.Trigger);
+    }
 }
