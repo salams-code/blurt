@@ -86,6 +86,21 @@
                             <ColumnDefinition Width="150" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Provider" />
+                        <ComboBox x:Name="RefinementProviderBox" Grid.Column="1"
+                                  SelectionChanged="OnRefinementProviderChanged" />
+                    </Grid>
+                    <TextBlock x:Name="ProviderHint"
+                               Margin="150,4,0,0"
+                               TextWrapping="Wrap"
+                               Foreground="#FF808080"
+                               FontSize="11"
+                               Text="" />
+                    <Grid Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="150" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Base URL" />
                         <TextBox x:Name="BaseUrlBox" Grid.Column="1" />
                     </Grid>

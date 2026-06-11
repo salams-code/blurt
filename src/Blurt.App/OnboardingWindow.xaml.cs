@@ -20,7 +20,10 @@ internal partial class OnboardingWindow : Window
 {
     private readonly SettingsStore _store;
     private readonly ModelProvisioner _provisioner;
-    private readonly BlurtConfig _config;
+
+    // Not readonly: the provider step (issue 17) updates the in-progress config
+    // (provider + base URL) before Finish() persists it with OnboardingCompleted.
+    private BlurtConfig _config;
 
     // The step currently shown. Drives panel visibility and button labels.
     private OnboardingStep _step = OnboardingStep.Microphone;
@@ -41,8 +44,21 @@ internal partial class OnboardingWindow : Window
         _config = store.Load();
 
         PopulateMicrophones();
+        ShowProviderChoice();
         ShowHotkeys();
         ShowStep(OnboardingStep.Microphone);
+    }
+
+    // Reflect any existing provider/base-URL choice so reopening (e.g. onboarding
+    // re-offered after a skip) shows the prior selection rather than resetting it.
+    private void ShowProviderChoice()
+    {
+        var local = _config.RefinementProvider == RefinementProvider.LocalOpenAiCompatible;
+        LocalProviderRadio.IsChecked = local;
+        OpenAiProviderRadio.IsChecked = !local;
+        if (local)
+            LocalBaseUrlBox.Text = _config.RefinementBaseUrl;
+        OnProviderChoiceChanged(this, new RoutedEventArgs());   // sync the sub-cards
     }
 
     // --- Step navigation ----------------------------------------------------
@@ -96,11 +112,12 @@ internal partial class OnboardingWindow : Window
 
     private void OnNext(object sender, RoutedEventArgs e)
     {
-        // Persist the API key when leaving that step (whether via Next or Skip):
-        // a typed value is saved through DPAPI; blank means "skip", leaving any
-        // existing key untouched.
+        // Persist the provider choice when leaving that step (whether via Next or
+        // Skip): OpenAI saves a typed key through DPAPI (blank = skip, existing key
+        // untouched); Local records the provider + base URL. The stored key is never
+        // deleted on a provider switch.
         if (_step == OnboardingStep.ApiKey)
-            SaveApiKeyIfTyped();
+            SaveProviderChoice();
 
         var index = (int)_step;
         var count = Enum.GetValues<OnboardingStep>().Length;
@@ -243,10 +260,45 @@ internal partial class OnboardingWindow : Window
         LevelBar.Width = 0;
     }
 
-    // --- Step 2: API key (DPAPI, skippable) --------------------------------
+    // --- Step 2: provider + API key (DPAPI, skippable) ---------------------
 
-    private void SaveApiKeyIfTyped()
+    // Toggle the two sub-cards as the provider radio changes (issue 17): OpenAI
+    // shows the key guide; Local shows the endpoint URL. Choosing Local never
+    // clears the key entry — switching providers only changes what's sent, not
+    // what's stored (RefinerAuth gates the key at refine time).
+    private void OnProviderChoiceChanged(object sender, RoutedEventArgs e)
     {
+        // Guard: Checked can fire during InitializeComponent before the cards exist.
+        if (OpenAiKeyCard is null || LocalEndpointCard is null)
+            return;
+
+        var local = LocalProviderRadio.IsChecked == true;
+        OpenAiKeyCard.Visibility = local ? Visibility.Collapsed : Visibility.Visible;
+        LocalEndpointCard.Visibility = local ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    // Persist the provider choice when leaving the step (issue 17). OpenAI: save a
+    // typed key (blank = skip, existing key untouched). Local: record the provider
+    // and base URL so refinement targets the keyless endpoint — the stored key is
+    // never deleted, just not sent (RefinerAuth). Mutates the in-progress _config
+    // so Finish() persists the choice alongside OnboardingCompleted.
+    private void SaveProviderChoice()
+    {
+        if (LocalProviderRadio.IsChecked == true)
+        {
+            var baseUrl = LocalBaseUrlBox.Text.Trim();
+            _config = _config with
+            {
+                RefinementProvider = RefinementProvider.LocalOpenAiCompatible,
+                RefinementBaseUrl = string.IsNullOrEmpty(baseUrl) ? _config.RefinementBaseUrl : baseUrl,
+            };
+            LocalHint.Text = "Local endpoint selected — no key needed.";
+            return;
+        }
+
+        // OpenAI cloud: keep the provider on OpenAI and save a typed key if any.
+        _config = _config with { RefinementProvider = RefinementProvider.OpenAi };
+
         var key = ApiKeyBox.Password;
         if (string.IsNullOrWhiteSpace(key))
             return;   // skipped — refinement falls back offline, no key stored

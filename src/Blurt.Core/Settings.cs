@@ -8,6 +8,23 @@ public enum TranscriptionMode
 }
 
 /// <summary>
+/// Which refinement endpoint is active (issue 17). Both speak the same
+/// OpenAI-compatible Chat Completions protocol — the difference is whether the
+/// stored API key is sent. <see cref="OpenAi"/> sends it; a
+/// <see cref="LocalOpenAiCompatible"/> endpoint (e.g. Ollama) needs none, so the
+/// key is kept stored but not sent. Declared first → default 0 → matches today's
+/// behaviour for any config written before this setting existed.
+/// </summary>
+public enum RefinementProvider
+{
+    /// <summary>OpenAI cloud: send the stored API key as Bearer auth.</summary>
+    OpenAi,
+
+    /// <summary>A local/remote OpenAI-compatible endpoint (Ollama): send no key.</summary>
+    LocalOpenAiCompatible,
+}
+
+/// <summary>
 /// One Flex-slot refinement mode. The slot cycles through these in declaration
 /// order (design contract §2: Pur → Bullets → Custom → Pur …).
 /// </summary>
@@ -47,6 +64,15 @@ public sealed record BlurtConfig
 
     /// <summary>Whisper model to use in local mode (design default: <c>small</c>, q5).</summary>
     public WhisperModel WhisperModel { get; init; } = WhisperModel.Default;
+
+    /// <summary>
+    /// Which refinement endpoint is active (issue 17): the OpenAI cloud (send the
+    /// stored key) or a local/Ollama OpenAI-compatible endpoint (send no key, but
+    /// keep it stored). Gates whether the key is sent; <see cref="RefinementBaseUrl"/>
+    /// stays the user-editable source of truth for the endpoint address.
+    /// Default <see cref="RefinementProvider.OpenAi"/> matches today's behaviour.
+    /// </summary>
+    public RefinementProvider RefinementProvider { get; init; } = RefinementProvider.OpenAi;
 
     /// <summary>Base URL of the OpenAI-compatible refinement endpoint.</summary>
     public string RefinementBaseUrl { get; init; } = "https://api.openai.com/v1";
@@ -104,6 +130,7 @@ public sealed record BlurtConfig
 
         return Transcription == other.Transcription
             && WhisperModel == other.WhisperModel
+            && RefinementProvider == other.RefinementProvider
             && RefinementBaseUrl == other.RefinementBaseUrl
             && RefinementModel == other.RefinementModel
             && CustomPrompt == other.CustomPrompt
@@ -119,6 +146,7 @@ public sealed record BlurtConfig
         var hash = new HashCode();
         hash.Add(Transcription);
         hash.Add(WhisperModel);
+        hash.Add(RefinementProvider);
         hash.Add(RefinementBaseUrl);
         hash.Add(RefinementModel);
         hash.Add(CustomPrompt);
