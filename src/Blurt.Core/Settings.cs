@@ -1,0 +1,152 @@
+namespace Blurt.Core;
+
+/// <summary>Where speech → text happens: on-device Whisper, or the OpenAI Whisper API.</summary>
+public enum TranscriptionMode
+{
+    Local,
+    Online,
+}
+
+/// <summary>
+/// One Flex-slot refinement mode. The slot cycles through these in declaration
+/// order (design contract §2: Pur → Bullets → Custom → Pur …).
+/// </summary>
+public enum FlexSlotMode
+{
+    /// <summary>Verbatim Whisper output, no LLM call (the only fully offline mode).</summary>
+    Pur,
+
+    /// <summary>Reformat the dictation into clean bullet points (LLM).</summary>
+    Bullets,
+
+    /// <summary>Apply the user-defined <see cref="BlurtConfig.CustomPrompt"/> (LLM).</summary>
+    Custom,
+}
+
+/// <summary>Where the status overlay positions itself (design contract §9).</summary>
+public enum OverlayAnchor
+{
+    /// <summary>Follow the mouse pointer.</summary>
+    MousePointer,
+
+    /// <summary>Fixed at the bottom-centre of the screen.</summary>
+    BottomCenter,
+}
+
+/// <summary>
+/// All non-secret, user-visible configuration, persisted as readable JSON at
+/// <c>&lt;appDataRoot&gt;\Blurt\config.json</c>. The API key is deliberately
+/// <em>not</em> here — it lives encrypted in a separate file (see
+/// <see cref="SettingsStore"/>). A <c>record</c> so round-trip equality is
+/// value-based and free.
+/// </summary>
+public sealed record BlurtConfig
+{
+    /// <summary>Local on-device Whisper vs. the OpenAI Whisper API.</summary>
+    public TranscriptionMode Transcription { get; init; } = TranscriptionMode.Local;
+
+    /// <summary>Whisper model to use in local mode (design default: <c>small</c>, q5).</summary>
+    public WhisperModel WhisperModel { get; init; } = WhisperModel.Default;
+
+    /// <summary>Base URL of the OpenAI-compatible refinement endpoint.</summary>
+    public string RefinementBaseUrl { get; init; } = "https://api.openai.com/v1";
+
+    /// <summary>Refinement model name (design default: <c>gpt-4o-mini</c>).</summary>
+    public string RefinementModel { get; init; } = "gpt-4o-mini";
+
+    /// <summary>
+    /// Hotkey bindings as a map from trigger to its key chord description.
+    /// Kept as strings so the JSON stays human-readable and the binding format
+    /// can evolve without a schema migration (design default: AltGr + , . -).
+    /// </summary>
+    public IReadOnlyDictionary<TriggerKind, string> HotkeyBindings { get; init; } =
+        new Dictionary<TriggerKind, string>
+        {
+            [TriggerKind.Fix] = "AltGr+,",
+            [TriggerKind.English] = "AltGr+.",
+            [TriggerKind.FlexSlot] = "AltGr+-",
+        };
+
+    /// <summary>The order the Flex slot cycles its modes in (design default: Pur → Bullets → Custom).</summary>
+    public IReadOnlyList<FlexSlotMode> FlexSlotOrder { get; init; } =
+        [FlexSlotMode.Pur, FlexSlotMode.Bullets, FlexSlotMode.Custom];
+
+    /// <summary>User-defined prompt applied by the <see cref="FlexSlotMode.Custom"/> slot.</summary>
+    public string CustomPrompt { get; init; } = "";
+
+    /// <summary>Where the status overlay anchors itself.</summary>
+    public OverlayAnchor OverlayAnchor { get; init; } = OverlayAnchor.MousePointer;
+
+    /// <summary>Start/stop sound (off by default — meeting-friendly, design §9).</summary>
+    public bool SoundEnabled { get; init; } = false;
+
+    /// <summary>The fully-defaulted configuration used when no config file exists yet.</summary>
+    public static BlurtConfig Default { get; } = new();
+
+    // A record's synthesised equality compares the collection properties by
+    // reference, so a JSON round-trip (which rebuilds them) would never be
+    // "equal". Override equality to compare those two members structurally;
+    // the rest is delegated to the compiler-generated member comparisons.
+    public bool Equals(BlurtConfig? other)
+    {
+        if (other is null) return false;
+        if (ReferenceEquals(this, other)) return true;
+
+        return Transcription == other.Transcription
+            && WhisperModel == other.WhisperModel
+            && RefinementBaseUrl == other.RefinementBaseUrl
+            && RefinementModel == other.RefinementModel
+            && CustomPrompt == other.CustomPrompt
+            && OverlayAnchor == other.OverlayAnchor
+            && SoundEnabled == other.SoundEnabled
+            && HotkeyBindingsEqual(HotkeyBindings, other.HotkeyBindings)
+            && FlexSlotOrder.SequenceEqual(other.FlexSlotOrder);
+    }
+
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(Transcription);
+        hash.Add(WhisperModel);
+        hash.Add(RefinementBaseUrl);
+        hash.Add(RefinementModel);
+        hash.Add(CustomPrompt);
+        hash.Add(OverlayAnchor);
+        hash.Add(SoundEnabled);
+        foreach (var binding in HotkeyBindings.OrderBy(b => b.Key))
+        {
+            hash.Add(binding.Key);
+            hash.Add(binding.Value);
+        }
+        foreach (var mode in FlexSlotOrder)
+            hash.Add(mode);
+        return hash.ToHashCode();
+    }
+
+    private static bool HotkeyBindingsEqual(
+        IReadOnlyDictionary<TriggerKind, string> a,
+        IReadOnlyDictionary<TriggerKind, string> b)
+    {
+        if (a.Count != b.Count) return false;
+        foreach (var (key, value) in a)
+        {
+            if (!b.TryGetValue(key, out var other) || other != value)
+                return false;
+        }
+        return true;
+    }
+}
+
+/// <summary>
+/// Narrow seam over symmetric secret protection, so <see cref="SettingsStore"/>
+/// can be unit-tested with a reversible fake instead of real DPAPI. The real
+/// implementation is <see cref="DpapiSecretProtector"/>.
+/// </summary>
+public interface ISecretProtector
+{
+    /// <summary>Encrypts <paramref name="plaintext"/> into opaque bytes.</summary>
+    byte[] Protect(byte[] plaintext);
+
+    /// <summary>Reverses <see cref="Protect"/>, recovering the original bytes.</summary>
+    byte[] Unprotect(byte[] ciphertext);
+}
