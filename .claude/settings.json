@@ -41,7 +41,34 @@
       "Bash(git fetch)",
       "Bash(dotnet --list-sdks)",
       "Bash(dotnet --list-runtimes)",
-      "Bash(dotnet --version)"
+      "Bash(dotnet --version)",
+
+      "Bash(git add*)",
+      "Bash(git commit*)",
+      "Bash(git merge*)",
+      "Bash(git switch*)",
+      "Bash(git worktree*)",
+      "PowerShell(git add*)",
+      "PowerShell(git commit*)",
+      "PowerShell(git merge*)",
+      "PowerShell(git switch*)",
+      "PowerShell(git worktree*)",
+
+      "PowerShell(Stop-Process -Name Blurt*)",
+      "PowerShell(Start-Process *Blurt.exe*)",
+
+      "Bash(ls*)",
+      "Bash(cat*)",
+      "Bash(echo*)",
+      "Bash(grep*)",
+      "Bash(rg*)",
+      "Bash(head*)",
+      "Bash(tail*)",
+      "Bash(wc*)"
+    ],
+    "deny": [
+      "Bash(git push*)",
+      "PowerShell(git push*)"
     ]
   }
 }
