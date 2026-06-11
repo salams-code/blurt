@@ -1,7 +1,12 @@
 # 08 — SettingsStore: JSON config + DPAPI-encrypted API key
 
-Status: ready-for-human
+Status: done
 Type: AFK
+
+**2026-06-11 (agent):** Vollständig automatisiert verifiziert (9 Tests inkl.
+echtem DPAPI-Round-Trip, Windows-guarded). Keine manuellen Checks nötig — der
+Store wird durch einen Folge-Slice (Refinement/Settings-Fenster) verdrahtet.
+Issue geschlossen.
 
 ## Implementation note (handoff)
 

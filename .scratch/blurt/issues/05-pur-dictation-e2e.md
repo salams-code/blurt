@@ -1,7 +1,12 @@
 # 05 — Pur dictation end-to-end
 
-Status: ready-for-human
+Status: done
 Type: HITL
+
+**2026-06-11 (user):** Live-Check bestanden — verbatim Injection in mehreren
+Apps, Original-Clipboard erhalten, und nach dem Fix fügt Stille nichts mehr ein
+(Whisper-Marker `[BLANK_AUDIO]`/`(Musik)` werden als „keine Sprache" behandelt).
+Issue geschlossen.
 
 ## Implementation note (handoff)
 
