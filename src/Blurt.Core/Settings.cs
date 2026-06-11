@@ -90,6 +90,23 @@ public sealed record BlurtConfig
     /// </summary>
     public bool OnboardingCompleted { get; init; } = false;
 
+    /// <summary>
+    /// How dictation picks its capture device (issue 16). Defaults to
+    /// <see cref="InputDeviceMode.FollowDefault"/> — the pre-issue-16 behaviour of
+    /// always recording from the Windows default input — so unplugging/replacing a
+    /// device (e.g. a Bluetooth headset) just works without reconfiguring.
+    /// </summary>
+    public InputDeviceMode InputDeviceMode { get; init; } = InputDeviceMode.FollowDefault;
+
+    /// <summary>
+    /// The chosen capture device's <c>WaveInCapabilities.ProductName</c>, used when
+    /// <see cref="InputDeviceMode"/> is <see cref="InputDeviceMode.Specific"/>. The
+    /// product name is the only handle NAudio exposes and isn't guaranteed unique;
+    /// resolution matches by name (see <see cref="InputDeviceResolver"/>) and falls
+    /// soft back to the default if it's gone. Empty in follow-default mode.
+    /// </summary>
+    public string InputDeviceName { get; init; } = "";
+
     /// <summary>The fully-defaulted configuration used when no config file exists yet.</summary>
     public static BlurtConfig Default { get; } = new();
 
@@ -110,6 +127,8 @@ public sealed record BlurtConfig
             && OverlayAnchor == other.OverlayAnchor
             && SoundEnabled == other.SoundEnabled
             && OnboardingCompleted == other.OnboardingCompleted
+            && InputDeviceMode == other.InputDeviceMode
+            && InputDeviceName == other.InputDeviceName
             && HotkeyBindingsEqual(HotkeyBindings, other.HotkeyBindings)
             && FlexSlotOrder.SequenceEqual(other.FlexSlotOrder);
     }
@@ -125,6 +144,8 @@ public sealed record BlurtConfig
         hash.Add(OverlayAnchor);
         hash.Add(SoundEnabled);
         hash.Add(OnboardingCompleted);
+        hash.Add(InputDeviceMode);
+        hash.Add(InputDeviceName);
         foreach (var binding in HotkeyBindings.OrderBy(b => b.Key))
         {
             hash.Add(binding.Key);

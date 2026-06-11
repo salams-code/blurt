@@ -114,13 +114,34 @@ internal partial class OnboardingWindow : Window
     }
 
     // Mark onboarding done and close. The flag is the single source of truth, so
-    // persisting it here is what stops the wizard from ever showing again.
+    // persisting it here is what stops the wizard from ever showing again. The mic
+    // chosen in step 1 is persisted too (issue 16) so dictation records from it,
+    // not just the level meter — see SelectedInputDevice.
     private void Finish()
     {
         StopLevelMeter();
-        _store.Save(_config with { OnboardingCompleted = true });
+
+        var (mode, name) = SelectedInputDevice();
+        _store.Save(_config with
+        {
+            OnboardingCompleted = true,
+            InputDeviceMode = mode,
+            InputDeviceName = name,
+        });
         DialogResult = true;
         Close();
+    }
+
+    // The capture device the user picked in step 1, mapped to the config fields. A
+    // real selection pins that device by name (Specific); if no device was found or
+    // the box is disabled, fall back to FollowDefault so the recorder uses whatever
+    // is default (and a device connected later just works). Issue 16.
+    private (InputDeviceMode Mode, string Name) SelectedInputDevice()
+    {
+        if (MicrophoneBox.IsEnabled && MicrophoneBox.SelectedItem is string name && name.Length > 0)
+            return (InputDeviceMode.Specific, name);
+
+        return (InputDeviceMode.FollowDefault, "");
     }
 
     // --- Step 1: microphone + live level -----------------------------------

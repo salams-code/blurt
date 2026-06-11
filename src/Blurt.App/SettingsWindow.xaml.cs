@@ -3,6 +3,7 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using Blurt.Core;
+using NAudio.Wave;
 
 namespace Blurt.App;
 
@@ -45,6 +46,14 @@ internal partial class SettingsWindow : Window
         LoadFromConfig(_original);
     }
 
+    // One microphone-combo entry. A null DeviceName is the "(Windows default)" item
+    // (FollowDefault); a non-null name is a specific enumerated device. ToString is
+    // what the ComboBox renders. Issue 16.
+    private sealed record MicrophoneChoice(string Label, string? DeviceName)
+    {
+        public override string ToString() => Label;
+    }
+
     // Fill the fixed-choice combo boxes once. Enum values back the items directly so
     // mapping back on save is a straight cast.
     private void PopulateChoices()
@@ -53,6 +62,23 @@ internal partial class SettingsWindow : Window
         OverlayAnchorBox.ItemsSource = new[] { OverlayAnchor.MousePointer, OverlayAnchor.BottomCenter };
         // The two local model sizes the design offers (issue 14: small/base).
         ModelSizeBox.ItemsSource = new[] { WhisperModel.Default, WhisperModel.Base };
+
+        PopulateMicrophones();
+    }
+
+    // Microphone list (issue 16): "(Windows default)" → FollowDefault, plus every
+    // enumerated input device by its WaveInCapabilities.ProductName → Specific. The
+    // names are exactly what the Core resolver and AudioRecorder match against.
+    private void PopulateMicrophones()
+    {
+        var choices = new List<MicrophoneChoice> { new("(Windows default)", DeviceName: null) };
+        for (var i = 0; i < WaveInEvent.DeviceCount; i++)
+        {
+            var name = WaveInEvent.GetCapabilities(i).ProductName;
+            choices.Add(new MicrophoneChoice(name, name));
+        }
+
+        MicrophoneBox.ItemsSource = choices;
     }
 
     private void LoadFromConfig(BlurtConfig config)
@@ -82,6 +108,34 @@ internal partial class SettingsWindow : Window
 
         OverlayAnchorBox.SelectedItem = config.OverlayAnchor;
         SoundEnabledBox.IsChecked = config.SoundEnabled;
+
+        SelectConfiguredMicrophone(config);
+    }
+
+    // Select the microphone matching the config. FollowDefault → the "(Windows
+    // default)" item; Specific → the entry whose name matches the saved device. If
+    // the saved device isn't currently plugged in, add a "(not connected)" entry for
+    // it so saving keeps the choice rather than silently dropping to default.
+    private void SelectConfiguredMicrophone(BlurtConfig config)
+    {
+        var choices = (List<MicrophoneChoice>)MicrophoneBox.ItemsSource;
+
+        if (config.InputDeviceMode == InputDeviceMode.FollowDefault)
+        {
+            MicrophoneBox.SelectedIndex = 0;   // the "(Windows default)" entry
+            return;
+        }
+
+        var match = choices.FirstOrDefault(c => c.DeviceName == config.InputDeviceName);
+        if (match is null && !string.IsNullOrEmpty(config.InputDeviceName))
+        {
+            match = new MicrophoneChoice($"{config.InputDeviceName} (not connected)", config.InputDeviceName);
+            choices.Add(match);
+            MicrophoneBox.ItemsSource = null;
+            MicrophoneBox.ItemsSource = choices;
+        }
+
+        MicrophoneBox.SelectedItem = match ?? choices[0];
     }
 
     private static string ChordFor(BlurtConfig config, TriggerKind trigger) =>
@@ -139,7 +193,20 @@ internal partial class SettingsWindow : Window
             CustomPrompt = CustomPromptBox.Text,
             OverlayAnchor = (OverlayAnchor)OverlayAnchorBox.SelectedItem,
             SoundEnabled = SoundEnabledBox.IsChecked == true,
+            InputDeviceMode = SelectedMicrophoneMode(),
+            InputDeviceName = SelectedMicrophoneName(),
         };
+
+    // The chosen microphone's mode: a null DeviceName (the "(Windows default)" item)
+    // means FollowDefault; a named device means Specific. Issue 16.
+    private InputDeviceMode SelectedMicrophoneMode() =>
+        MicrophoneBox.SelectedItem is MicrophoneChoice { DeviceName: not null }
+            ? InputDeviceMode.Specific
+            : InputDeviceMode.FollowDefault;
+
+    // The product name to persist for a Specific device, or "" for FollowDefault.
+    private string SelectedMicrophoneName() =>
+        MicrophoneBox.SelectedItem is MicrophoneChoice { DeviceName: { } name } ? name : "";
 
     // Parse "Pur, Bullets, Custom" into the mode order. Unknown tokens are dropped;
     // if nothing valid remains, keep the previous order rather than emptying the
