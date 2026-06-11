@@ -1,0 +1,39 @@
+<Window x:Class="Blurt.App.OverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:ClassModifier="internal"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        Topmost="True"
+        ShowInTaskbar="False"
+        ResizeMode="NoResize"
+        ShowActivated="False"
+        SizeToContent="WidthAndHeight"
+        Focusable="False"
+        IsHitTestVisible="False">
+    <!-- The pill: a rounded, semi-transparent dark capsule with a coloured status
+         dot on the left and a white label on the right. Padding/margins are sized
+         so SizeToContent yields a snug pill the placement maths can position. -->
+    <Border CornerRadius="14"
+            Background="#CC1E1E1E"
+            Padding="14,8"
+            Margin="8">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="12" ShadowDepth="0" Opacity="0.5" Color="Black" />
+        </Border.Effect>
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <Ellipse x:Name="StatusDot"
+                     Width="12" Height="12"
+                     VerticalAlignment="Center"
+                     Fill="#DC3545" />
+            <TextBlock x:Name="StatusText"
+                       Margin="10,0,0,0"
+                       VerticalAlignment="Center"
+                       Foreground="White"
+                       FontSize="13"
+                       FontWeight="SemiBold"
+                       Text="listening…" />
+        </StackPanel>
+    </Border>
+</Window>
