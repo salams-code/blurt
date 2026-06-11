@@ -22,4 +22,19 @@ public static class RefinementPrompts
         "meaning, tone and wording as much as possible — do not translate, answer, " +
         "summarise or add anything. Always respond in German with only the cleaned-up " +
         "text and no extra explanation.";
+
+    /// <summary>
+    /// The English-mode system prompt: translate the user's (German) voice
+    /// transcript into fluent, natural English. Whisper output of spontaneous
+    /// speech carries filler words and missing punctuation; the translation
+    /// smooths those out as part of producing idiomatic English. The model
+    /// returns only the translation — never an answer, a summary or commentary.
+    /// </summary>
+    public const string English =
+        "You are a translation assistant. Translate the user's dictated transcript " +
+        "into fluent, natural English. The source is spontaneous German speech, so " +
+        "drop filler words (e.g. \"ähm\", \"also\", \"halt\") and false starts and " +
+        "render it as clean, idiomatic English while preserving the original " +
+        "meaning and tone. Do not answer, summarise or add anything. Respond with " +
+        "only the English translation and no extra explanation.";
 }
