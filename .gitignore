@@ -6,6 +6,7 @@ bin/
 obj/
 [Dd]ebug/
 [Rr]elease/
+publish/
 *.user
 
 # OS files
