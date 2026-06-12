@@ -341,13 +341,15 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             // Provisioning (first-run download) can fail on a blocked network;
             // keep that a soft notice rather than letting it reach the pipeline.
-            var transcriber = await _transcriber.GetAsync();
+            // zeroNetwork: this is the verbatim (Pur / raw-fallback) path — its
+            // offline promise means the resolver keeps it on local whisper.cpp
+            // even when Online transcription is configured (issue 12).
+            var transcriber = await ResolveTranscriberAsync(zeroNetwork: true);
 
             // Pur mode: no refinement delegate, so verbatim Whisper output is
-            // injected at the cursor. The transcriber adapter pushes the
-            // CPU-heavy decode onto the thread pool to keep the tray responsive.
+            // injected at the cursor.
             var pipeline = new DictationPipeline(
-                new OffloadedTranscriber(transcriber),
+                transcriber,
                 _textInjector,
                 onResult: _recentDictations.Add);   // issue 26: recoverable history
 
@@ -412,7 +414,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
         EnterProcessing();   // "transcribing" pill + amber tray while we transcribe+refine
         try
         {
-            var transcriber = await _transcriber.GetAsync();
+            // Refined modes already cross the network for the LLM, so the
+            // configured transcription source applies: Local → whisper.cpp,
+            // Online → the OpenAI Whisper API (issue 12). Resolved per dictation,
+            // so a source change in Settings takes effect without a restart.
+            var transcriber = await ResolveTranscriberAsync(zeroNetwork: false);
 
             // Build the refiner from current settings each time so a base
             // URL/model/provider/key change takes effect without an app restart. A
@@ -526,6 +532,26 @@ internal sealed class TrayApplicationContext : ApplicationContext
         public Task<string> TranscribeAsync(Stream wavAudio, CancellationToken ct = default)
             => Task.Run(() => inner.TranscribeAsync(wavAudio, ct), ct);
     }
+
+    // Where the OpenAI Whisper API lives. Transcription always targets the OpenAI
+    // cloud (unlike refinement, whose base URL is user-configurable per provider):
+    // the online option exists for lower latency, not for arbitrary endpoints.
+    private const string OpenAiTranscriptionBaseUrl = "https://api.openai.com/v1";
+
+    // Resolve this dictation's transcriber (issue 12). Core's TranscriberResolver
+    // owns the decision: the configured source picks local whisper.cpp or the
+    // OpenAI Whisper API — except zero-network (verbatim) dictation, which always
+    // stays local. Factories keep the loser free: with Online selected the local
+    // model is never provisioned/downloaded. The online client reuses the one
+    // pooled HttpClient and reads the DPAPI key fresh, so a key change applies
+    // to the next dictation without a restart.
+    private Task<ITranscriber> ResolveTranscriberAsync(bool zeroNetwork) =>
+        TranscriberResolver.ResolveAsync(
+            _settings.Load().Transcription,
+            zeroNetwork,
+            local: async () => new OffloadedTranscriber(await _transcriber.GetAsync()),
+            online: () => new OpenAiWhisper(
+                _httpClient, OpenAiTranscriptionBaseUrl, _settings.LoadApiKey() ?? ""));
 
     private async Task<LocalWhisper> ProvisionTranscriberAsync()
     {

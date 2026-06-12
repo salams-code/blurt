@@ -65,7 +65,7 @@
                         </StackPanel>
                         <TextBlock Style="{StaticResource Hint}"
                                    Margin="150,4,0,0"
-                                   Text="Changing the source or model takes effect after a restart." />
+                                   Text="The source applies from the next dictation (Pur always stays local/offline). Changing the local model takes effect after a restart." />
                     </StackPanel>
                 </Border>
 

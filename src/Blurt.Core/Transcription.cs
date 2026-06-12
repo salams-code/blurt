@@ -14,3 +14,23 @@ public interface ITranscriber
     /// </summary>
     Task<string> TranscribeAsync(Stream wavAudio, CancellationToken ct = default);
 }
+
+/// <summary>
+/// Picks the transcriber for one dictation (issue 12): the configured
+/// <see cref="TranscriptionMode"/> chooses local whisper.cpp or the OpenAI
+/// Whisper API — except for zero-network dictation (verbatim Pur, design
+/// contract), which always stays local. Factories instead of instances so the
+/// loser costs nothing: with Online selected the local model is never
+/// provisioned, and vice versa no online client is built.
+/// </summary>
+public static class TranscriberResolver
+{
+    public static Task<ITranscriber> ResolveAsync(
+        TranscriptionMode mode,
+        bool zeroNetwork,
+        Func<Task<ITranscriber>> local,
+        Func<ITranscriber> online)
+        => zeroNetwork || mode == TranscriptionMode.Local
+            ? local()
+            : Task.FromResult(online());
+}
