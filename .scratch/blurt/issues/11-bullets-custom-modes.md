@@ -1,6 +1,6 @@
 # 11 — Bullets + Custom modes in the Flex slot
 
-Status: ready-for-human
+Status: done (verify-sweep 2026-06-12)
 Type: AFK
 
 ## Parent
@@ -17,10 +17,10 @@ three is currently selected; Pur still skips the refiner.
 
 ## Acceptance criteria
 
-- [ ] Test: selecting Bullets sends the bullets prompt; selecting Custom sends the stored custom prompt (asserted against the mock server).
-- [ ] Holding the Flex-slot key in Bullets produces bullet-point output inserted at the cursor.
-- [ ] Holding in Custom uses the prompt from settings.
-- [ ] Pur in the same slot still makes zero refiner calls.
+- [x] Test: selecting Bullets sends the bullets prompt; selecting Custom sends the stored custom prompt (asserted against the mock server).
+- [x] Holding the Flex-slot key in Bullets produces bullet-point output inserted at the cursor.
+- [x] Holding in Custom uses the prompt from settings.
+- [x] Pur in the same slot still makes zero refiner calls.
 
 ## Blocked by
 
@@ -68,3 +68,7 @@ Manual checks (live, on the corporate laptop — not automated):
       inserted (no crash).
 - [ ] **Pur** in the same slot stays offline — hold and dictate works with no
       network call.
+
+## Comments
+
+**2026-06-12 (agent, verify-sweep):** Mode-to-prompt selection and both prompts asserted against the mock server (unit suite); Pur's zero-refiner path enforced in FlexSlotPrompts (null prompt) and now additionally by TranscriberResolver (issue 12). Exercised in HITL use.

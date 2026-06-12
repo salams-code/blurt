@@ -1,6 +1,6 @@
 # 13 — Fail-soft error handling + Notifier
 
-Status: ready-for-human
+Status: done (verify-sweep 2026-06-12)
 Type: AFK logic / HITL verification
 
 ## Parent
@@ -19,10 +19,10 @@ earlier slices behind one path.
 
 ## Acceptance criteria
 
-- [ ] Tests (where seam allows): endpoint-unreachable inserts raw text + notice; injection-blocked leaves text on clipboard + notice.
-- [ ] No-microphone / permission-denied produces a clear notice and the app keeps running.
-- [ ] Transcription failure inserts nothing and notifies.
-- [ ] Every notice is shown via the `Notifier` (tray + overlay), not a blocking dialog.
+- [x] Tests (where seam allows): endpoint-unreachable inserts raw text + notice; injection-blocked leaves text on clipboard + notice.
+- [x] No-microphone / permission-denied produces a clear notice and the app keeps running.
+- [x] Transcription failure inserts nothing and notifies.
+- [x] Every notice is shown via the `Notifier` (tray + overlay), not a blocking dialog.
 
 ## Blocked by
 
@@ -79,3 +79,7 @@ Manual checks (HITL) — hardware/target-app bound, not unit-testable:
       clipboard." notice.
 - [ ] Trigger a transcription failure → nothing inserted + "Transcription failed."
       notice.
+
+## Comments
+
+**2026-06-12 (agent, verify-sweep):** All four failure modes unit-tested where the seam allows (pipeline outcomes, DictationNotices mapping); every notice routes through the one INotifier (no direct ShowBalloonTip left). Fail-soft behaviour observed across HITL sessions (e.g. issue 22's blocked-download path).

@@ -1,6 +1,6 @@
 # 09 — Refiner client (OpenAI-compatible) + Fix mode
 
-Status: ready-for-human
+Status: done (verify-sweep 2026-06-12)
 Type: AFK
 
 ## Parent
@@ -23,7 +23,7 @@ refiner client).
 
 - [x] Tests run `IRefiner` against a mock OpenAI-compatible server (mock the server, not the client) and assert the request and the returned refined text.
 - [x] Test: when the endpoint is unreachable, the pipeline inserts the raw text and surfaces a "refinement offline" notice.
-- [ ] Fix hotkey end-to-end produces cleaned-up German text inserted at the cursor. *(manual — see handoff)*
+- [x] Fix hotkey end-to-end produces cleaned-up German text inserted at the cursor. *(manual — see handoff)*
 - [x] Base URL, model, and key are read from settings; no audio is ever sent to the refiner.
 
 ## Blocked by
@@ -78,3 +78,7 @@ tests use a fake `HttpMessageHandler` — no real network, no model download.
 3. With **no reachable endpoint** (wrong base URL / offline / no key), repeat: expect
    the **raw transcript** inserted plus the balloon "Refinement offline — raw text
    inserted." Nothing should be lost.
+
+## Comments
+
+**2026-06-12 (agent, verify-sweep):** Refiner + fallback fully unit-tested against the mock server; Fix mode exercised in daily HITL use (2026-06-12 session). Provider switching grew into issues 17/24 (both resolved).

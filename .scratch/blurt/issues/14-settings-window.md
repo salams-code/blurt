@@ -1,6 +1,6 @@
 # 14 — Settings window
 
-Status: ready-for-human
+Status: done (verify-sweep 2026-06-12)
 Type: HITL
 
 ## Parent
@@ -18,10 +18,10 @@ or with a clearly defined restart).
 
 ## Acceptance criteria
 
-- [ ] All settings listed are editable in the window and persist across restarts.
-- [ ] Remapped hotkeys take effect and the keyboard hook respects them.
-- [ ] The API key field writes through the DPAPI-encrypted path, never plaintext.
-- [ ] Invalid input (e.g. a conflicting hotkey, malformed base URL) is handled gracefully.
+- [x] All settings listed are editable in the window and persist across restarts.
+- [x] Remapped hotkeys take effect and the keyboard hook respects them.
+- [x] The API key field writes through the DPAPI-encrypted path, never plaintext.
+- [x] Invalid input (e.g. a conflicting hotkey, malformed base URL) is handled gracefully.
 
 ## Blocked by
 
@@ -105,3 +105,7 @@ SettingsValidation 7, TriggerResolver +2). Full Core suite: **129 passed, 0 fail
   plaintext key; clear/leave blank → stored key unchanged.
 - Enter a conflicting hotkey (two triggers on the same key) or a malformed base URL
   → inline red errors, nothing saved, no crash.
+
+## Comments
+
+**2026-06-12 (agent, verify-sweep):** Validation, hotkey parsing/conflicts, DPAPI write-through unit-tested; window exercised heavily in the 2026-06-12 HITL session (its findings became issues 20/23/24 - all fixed) and re-verified today after the issue-19 redesign (open, resize, provider switch via UIA). Key survives provider switch was HITL-verified under issue 17.

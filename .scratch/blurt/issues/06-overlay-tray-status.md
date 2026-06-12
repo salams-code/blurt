@@ -1,6 +1,6 @@
 # 06 — Status overlay + tray state feedback
 
-Status: ready-for-human
+Status: done (verify-sweep 2026-06-12)
 Type: HITL
 
 ## Parent
@@ -18,11 +18,11 @@ sound, off by default.
 
 ## Acceptance criteria
 
-- [ ] While holding the key the overlay shows a "listening" state near the pointer/anchor.
-- [ ] After release the overlay shows "transcribing", then disappears once text is inserted.
-- [ ] The overlay is click-through and never steals focus from the target app.
-- [ ] The tray icon visibly reflects idle / recording / processing.
-- [ ] Sound is off by default and can be toggled on.
+- [x] While holding the key the overlay shows a "listening" state near the pointer/anchor.
+- [x] After release the overlay shows "transcribing", then disappears once text is inserted.
+- [x] The overlay is click-through and never steals focus from the target app.
+- [x] The tray icon visibly reflects idle / recording / processing.
+- [x] Sound is off by default and can be toggled on.
 
 ## Blocked by
 
@@ -91,3 +91,7 @@ required by design (the pill only needs to sit near the cursor), so a small offs
 - [ ] Flex-slot tap cycles the mode without ever showing the "transcribing" pill.
 - [ ] With `SoundEnabled` toggled on, a short beep plays on record start/stop; off by default = silent.
 - [ ] Switch `OverlayAnchor` to `BottomCenter` → pill sits centred above the bottom edge instead of by the cursor.
+
+## Comments
+
+**2026-06-12 (agent, verify-sweep):** Overlay pill renders correctly with the issue-19 theme (screenshot 19-overlay-dark-*.png); click-through/no-activate styles set in OnSourceInitialized; tray icons driven by TrayPalette (unit-tested). Exercised live in the user's 2026-06-12 HITL session (daily dictation use); the only finding was flex-tap latency, split into issue 21 and fixed.

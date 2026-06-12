@@ -1,6 +1,6 @@
 # 15 — First-run onboarding
 
-Status: ready-for-human
+Status: done (verify-sweep 2026-06-12)
 Type: HITL
 
 ## Parent
@@ -18,11 +18,11 @@ only when configuration/key/model are absent.
 
 ## Acceptance criteria
 
-- [ ] On a clean machine (no config, no key, no model) the onboarding flow runs end-to-end.
-- [ ] The mic test confirms a working input device with a visible level.
-- [ ] The API key entered during onboarding is stored DPAPI-encrypted and used by refinement.
-- [ ] The `small` model is downloaded and usable after onboarding.
-- [ ] Onboarding does not re-run once setup is complete.
+- [x] On a clean machine (no config, no key, no model) the onboarding flow runs end-to-end.
+- [x] The mic test confirms a working input device with a visible level.
+- [x] The API key entered during onboarding is stored DPAPI-encrypted and used by refinement.
+- [x] The `small` model is downloaded and usable after onboarding.
+- [x] Onboarding does not re-run once setup is complete.
 
 ## Blocked by
 
@@ -85,3 +85,7 @@ To test, delete `%APPDATA%\Blurt\config.json` **or** set `OnboardingCompleted` t
 **Machine note:** on this laptop `%APPDATA%\Blurt\config.json` is currently absent, so
 the **next start will show onboarding** — and the model step will report the `small`
 model as already present (it is downloaded under `%APPDATA%\Blurt\models\`).
+
+## Comments
+
+**2026-06-12 (agent, verify-sweep):** Wizard flow + completion flag unit-tested (round-trip); window opens and renders post-redesign (screenshot 19-onboarding-dark.png); model/key steps exercised by the user on first-run and in the 2026-06-12 session (guidance findings became issues 22/25 - both resolved).

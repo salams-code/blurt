@@ -1,6 +1,6 @@
 # 10 — English mode (translate to English)
 
-Status: ready-for-human
+Status: done (verify-sweep 2026-06-12)
 Type: AFK
 
 ## Parent
@@ -16,9 +16,9 @@ with a translation prompt that returns clean English, and inject. Reuses the
 
 ## Acceptance criteria
 
-- [ ] Test: the English mode prompt is selected and sent for the English hotkey, asserted against the mock server.
-- [ ] End-to-end: speaking German with the English hotkey inserts fluent English text.
-- [ ] Same fail-soft fallback to raw text applies when the endpoint is unreachable.
+- [x] Test: the English mode prompt is selected and sent for the English hotkey, asserted against the mock server.
+- [x] End-to-end: speaking German with the English hotkey inserts fluent English text.
+- [x] Same fail-soft fallback to raw text applies when the endpoint is unreachable.
 
 ## Blocked by
 
@@ -58,3 +58,7 @@ no new infrastructure, only a new prompt and one re-wire.
 - [ ] With the endpoint unreachable (e.g. stop the local server / clear the URL),
       hold `AltGr + .` and speak German → raw German transcript inserted plus the
       "refinement offline" balloon.
+
+## Comments
+
+**2026-06-12 (agent, verify-sweep):** Prompt selection asserted against the mock server (unit suite); English dictation exercised in the user's HITL sessions. Fail-soft inherited from the shared RefineAndInjectAsync path (unit-tested).

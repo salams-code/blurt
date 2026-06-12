@@ -1,6 +1,6 @@
 # 22 — Runtime model-load failure shows manual-install guidance
 
-Status: ready-for-agent (found in HITL test, 2026-06-12)
+Status: ready-for-human (built; HITL only possible on the proxy-blocked corporate machine)
 Type: AFK (thin runtime notice over existing Core logic) / HITL check
 
 ## Parent
@@ -39,3 +39,7 @@ link, and folder to install by hand. The "Downloading…" notice must also name 
 ## Blocked by
 
 - None (builds on 18, done).
+
+## Comments
+
+**2026-06-12 (agent, verify-sweep):** Deliberately left open: the blocked-download failure path can only be exercised on the corporate (proxy-blocked) machine - this machine downloads fine (see memory two-machine-setup). Everything else in the sweep (06, 07, 09, 10, 11, 13, 14, 15, 16) is done.

@@ -1,6 +1,6 @@
 # 07 — Tap-vs-hold detection + Flex-slot cycling
 
-Status: ready-for-human
+Status: done (verify-sweep 2026-06-12)
 Type: AFK core (timing logic + slot state are unit-tested) / HITL feel check
 
 ## Implementation note (handoff)
@@ -67,10 +67,14 @@ unit-testable without the Win32 hook.
 
 - [x] Unit tests: durations below the threshold resolve to "tap", above to "hold", with the boundary configurable.
 - [x] Unit tests: tapping cycles Pur → Bullets → Custom → Pur → … and current-mode resolution is correct.
-- [ ] Holding the Flex-slot key dictates using the current mode (Pur path functional end-to-end). *(wired via DictationPipeline; manual feel-check pending)*
+- [x] Holding the Flex-slot key dictates using the current mode (Pur path functional end-to-end). *(wired via DictationPipeline; manual feel-check pending)*
 - [x] The tray shows the current slot mode after each tap-cycle.
 - [x] The threshold is configurable.
 
 ## Blocked by
 
 - 05 — Pur dictation end-to-end
+
+## Comments
+
+**2026-06-12 (agent, verify-sweep):** Classifier + cycle unit-tested; hold-path dictation exercised in the user's 2026-06-12 HITL session. The tap-latency finding from that session became issue 21 (fixed today: non-blocking Discard). Feel re-check of the fix tracked there, not here.

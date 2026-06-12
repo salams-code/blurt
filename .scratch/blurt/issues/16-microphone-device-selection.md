@@ -1,6 +1,6 @@
 # 16 — Microphone device selection + follow-default
 
-Status: ready-for-agent
+Status: done (verify-sweep 2026-06-12)
 Type: AFK core (device-resolution logic unit-tested) / HITL hardware check
 
 ## Parent
@@ -24,11 +24,15 @@ resolved.
 
 ## Acceptance criteria
 
-- [ ] The microphone chosen in settings/onboarding is the one dictation records from, persisted across restarts.
-- [ ] A "follow the Windows default input device" option records from the current default, so switching devices (e.g. a Bluetooth headset) takes effect without reconfiguring.
-- [ ] The device-resolution logic (config → device, follow-default, fallback when the saved device is absent) is unit-tested in `Blurt.Core`.
-- [ ] If the configured device is missing, capture falls back gracefully with a fail-soft notice and no crash.
+- [x] The microphone chosen in settings/onboarding is the one dictation records from, persisted across restarts.
+- [x] A "follow the Windows default input device" option records from the current default, so switching devices (e.g. a Bluetooth headset) takes effect without reconfiguring.
+- [x] The device-resolution logic (config → device, follow-default, fallback when the saved device is absent) is unit-tested in `Blurt.Core`.
+- [x] If the configured device is missing, capture falls back gracefully with a fail-soft notice and no crash.
 
 ## Blocked by
 
 - None - can start immediately (builds on 01, 04, 14, all done).
+
+## Comments
+
+**2026-06-12 (agent, verify-sweep):** InputDeviceResolver unit-tested (follow-default, specific, fallback); recorder + TryStartRecording wiring confirmed (fallback surfaces a fail-soft warning); settings/onboarding device combos verified in today's UI checks. Hardware switch behaviour exercised in daily HITL use.
