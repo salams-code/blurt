@@ -122,6 +122,53 @@ internal sealed class AudioRecorder : IDisposable
         return buffer;
     }
 
+    /// <summary>
+    /// Non-blocking discard for a take that was never meant as speech — the
+    /// flex-slot tap path (issue 21). Detaches all state immediately (so
+    /// <see cref="IsRecording"/> is false and the next press starts fresh) and
+    /// tears the device down on the thread pool: the UI thread never waits for
+    /// NAudio's device thread to drain a recording we're throwing away.
+    /// No-op when not recording.
+    /// </summary>
+    public void Discard()
+    {
+        var waveIn = _waveIn;
+        if (waveIn is null)
+        {
+            return;
+        }
+
+        // Unsubscribe FIRST: a late device buffer must never land in _writer —
+        // by the time it fires, that field could already belong to the *next*
+        // recording of a rapid tap→hold sequence.
+        waveIn.DataAvailable -= OnDataAvailable;
+
+        var writer = _writer;
+        var buffer = _buffer;
+        _waveIn = null;
+        _writer = null;
+        _buffer = null;
+
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                waveIn.StopRecording();
+                waveIn.Dispose();
+            }
+            catch
+            {
+                // Discarding: there is nothing to save, so teardown hiccups
+                // (device already gone, etc.) are not worth surfacing.
+            }
+            finally
+            {
+                writer?.Dispose();
+                buffer?.Dispose();
+            }
+        });
+    }
+
     private void OnDataAvailable(object? sender, WaveInEventArgs e) =>
         _writer?.Write(e.Buffer, 0, e.BytesRecorded);
 

@@ -1,6 +1,6 @@
 # 21 — Flex-slot tap must not block the UI thread
 
-Status: proposed — awaiting triage (found in manual test of the current build, 2026-06-12)
+Status: ready-for-human (fixed 2026-06-12; awaiting HITL feel check)
 Type: AFK (UI-thread/latency fix) / HITL feel check
 
 ## Parent
@@ -29,10 +29,30 @@ coverage if a new decision is introduced (e.g. a minimum-viable-take guard).
 
 ## Acceptance criteria
 
-- [ ] A quick tap cycles the mode immediately (no multi-second wait, no stuck "listening" pill).
-- [ ] The UI thread is never blocked on the tap (discard) path.
-- [ ] A hold still records and transcribes correctly; rapid tap→hold→tap sequences stay reliable.
-- [ ] Any new timing/guard decision is unit-tested in `Blurt.Core`; the suite stays green.
+- [x] A quick tap cycles the mode immediately (no multi-second wait, no stuck "listening" pill).
+- [x] The UI thread is never blocked on the tap (discard) path.
+- [ ] A hold still records and transcribes correctly; rapid tap→hold→tap sequences stay reliable. *(HITL feel check)*
+- [x] Any new timing/guard decision is unit-tested in `Blurt.Core`; the suite stays green. *(no new Core decision — the 250 ms classifier is unchanged)*
+
+## Comments
+
+**2026-06-12 (agent) — triage + fix:** Confirmed the diagnosis: the tap branch
+(and the stale-key-up abort) called `_recorder.Stop().Dispose()` on the UI
+thread; `Stop` waits up to 2 s on NAudio's `RecordingStopped`. Fix:
+`AudioRecorder.Discard()` — non-blocking, no-op when idle:
+
+1. unsubscribes `DataAvailable` **synchronously first**, so a late device buffer
+   can never land in the *next* recording's writer during a rapid tap→hold
+   (that race existed before the fix, too);
+2. detaches all recorder state immediately (`IsRecording` false, next press
+   starts fresh);
+3. stops/disposes the device + writer + buffer on the thread pool, swallowing
+   teardown errors (there is nothing to save on the discard path).
+
+Both tap-path call sites in `TrayApplicationContext` now use `Discard()`;
+`Stop()` (hold → transcription) and `Dispose()` (app exit) are unchanged. App
+builds, suite green (173/173). The "feels instant" check is hardware-bound →
+HITL.
 
 ## Blocked by
 

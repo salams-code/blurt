@@ -279,10 +279,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             // Key-up without a matching down (e.g. held across app start). Drop
             // any partial take and reset so the next press starts cleanly.
             _flexSlotDownTicks = null;
-            if (_recorder.IsRecording)
-            {
-                _recorder.Stop().Dispose();
-            }
+            _recorder.Discard();   // non-blocking; no-op when not recording (issue 21)
             ReturnToIdle();   // make sure the pill/tray don't get stuck recording
             return;
         }
@@ -299,7 +296,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
             // Tap: the recording was never meant as speech — throw it away and
             // advance the mode, surfacing the new one in the tray. No transcription,
             // so the overlay goes straight back to idle (no "transcribing" pill).
-            _recorder.Stop().Dispose();
+            // Discard (not Stop) so the UI thread never waits on the device
+            // draining a take we're binning — the cycle must feel instant (issue 21).
+            _recorder.Discard();
             ReturnToIdle();
             var mode = _flexSlotCycle.Cycle();
             _trayIcon.Text = $"{AppInfo.Name} - {mode}";
