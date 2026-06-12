@@ -327,8 +327,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
         catch (Exception ex)
         {
-            // Provisioning failure (e.g. blocked model download) — fail-soft.
-            _notifier.Notify($"Dictation unavailable: {ex.Message}", NoticeLevel.Error);
+            // Provisioning failure (e.g. blocked model download) — fail-soft, and
+            // point at the manual install for the selected model (issue 22).
+            _notifier.Notify(ProvisioningFailureNotice(ex.Message), NoticeLevel.Error);
         }
         finally
         {
@@ -409,8 +410,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
         catch (Exception ex)
         {
-            // Provisioning failure (e.g. blocked model download) — fail-soft.
-            _notifier.Notify($"Dictation unavailable: {ex.Message}", NoticeLevel.Error);
+            // Provisioning failure (e.g. blocked model download) — fail-soft, and
+            // point at the manual install for the selected model (issue 22).
+            _notifier.Notify(ProvisioningFailureNotice(ex.Message), NoticeLevel.Error);
         }
         finally
         {
@@ -510,13 +512,36 @@ internal sealed class TrayApplicationContext : ApplicationContext
         if (!provisioner.IsModelPresent(model))
         {
             _notifier.Notify(
-                $"Downloading Whisper model ({model.FileName})… If this is blocked, " +
-                $"place the file from {model.DownloadUrl} into {provisioner.ModelsDirectory}.",
+                $"Downloading the {model.Size} Whisper model ({model.FileName})… " +
+                ManualInstallHint(model, provisioner),
                 NoticeLevel.Info);
         }
 
         var modelPath = await provisioner.EnsureModelAsync(model);
         return new LocalWhisper(modelPath);
+    }
+
+    // The per-selection manual-install guidance (issue 18/22): the exact filename,
+    // the working resolve link, and the target folder, all derived from the selected
+    // model — so a blocked user (corporate proxy) can install the matching file by
+    // hand and it's the very file the runtime loads. Shared by the first-run
+    // "Downloading…" notice and the provisioning-failure notice so the two never drift.
+    private static string ManualInstallHint(WhisperModel model, ModelProvisioner provisioner) =>
+        $"If the download is blocked, place {model.FileName} from {model.DownloadUrl} " +
+        $"into {provisioner.ModelsDirectory}.";
+
+    // Builds the provisioning-failure notice (issue 22): the generic error message
+    // plus the manual-install guidance for the currently-selected model, so a user
+    // whose download was blocked is told exactly which file, link, and folder to use.
+    // Reads the selection fresh and re-derives the provisioner the same way
+    // ProvisionTranscriberAsync does, so the folder shown is exactly where Blurt loads.
+    private string ProvisioningFailureNotice(string message)
+    {
+        var provisioner = new ModelProvisioner(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            new GgmlModelDownloader());
+        var model = _settings.Load().WhisperModel;
+        return $"Dictation unavailable: {message}  {ManualInstallHint(model, provisioner)}";
     }
 
     // Run the first-run wizard (issue 15) modally before the tray takes over. Built
@@ -560,13 +585,38 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         var window = new SettingsWindow(_settings);
         _settingsWindow = window;
+
+        // Issue 20: a modeless WPF window hosted in this WinForms message loop doesn't
+        // get keyboard input routed to it unless we ask WinForms-WPF interop to pump
+        // its keys. Without this the text fields swallow typed characters (existing
+        // text can be deleted but nothing new entered). Keep the window modeless — the
+        // tray must stay responsive and the single-instance Activate() path must work —
+        // so this is the correct fix rather than switching to ShowDialog().
+        System.Windows.Forms.Integration.ElementHost.EnableModelessKeyboardInterop(window);
+
+        // Issue 20: suspend the global trigger hook while Settings is open so the
+        // trigger characters , . - (and AltGr chords) reach the fields instead of
+        // being swallowed / firing a dictation behind the window. Restored on close —
+        // but a save re-creates the hook (ApplySettings), which comes back enabled, so
+        // only resume the still-live hook when no save replaced it.
+        var hookOnOpen = _keyboardHook;
+        hookOnOpen.Suspend();
+
         window.Closed += (_, _) =>
         {
             // Apply only on a genuine save (DialogResult true + a captured config).
+            // ApplySettings disposes this hook and installs a fresh, already-enabled
+            // one from the new bindings.
             if (window.DialogResult == true && window.SavedConfig is { } saved)
             {
                 ApplySettings(saved);
             }
+            else if (ReferenceEquals(_keyboardHook, hookOnOpen))
+            {
+                // No save: the same hook is still installed — re-enable trigger handling.
+                hookOnOpen.Resume();
+            }
+
             _settingsWindow = null;
         };
         window.Show();
