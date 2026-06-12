@@ -1,46 +1,61 @@
-# 20 — Hotkey capture in settings + suspend the global hook while configuring
+# 20 — Configuration windows must accept input (modeless WPF interop + suspend hook + hotkey capture)
 
-Status: proposed — awaiting triage (found in manual test of the current build, 2026-06-12)
-Type: AFK logic (capture/validation unit-tested) / HITL UI check
+Status: ready-for-agent (root cause confirmed in HITL test, 2026-06-12)
+Type: AFK App-interop + AFK Core (hotkey capture/validation unit-tested) / HITL UI check
 
 ## Parent
 
 [.scratch/blurt/PRD.md](../PRD.md)
 
+## What's broken (HITL findings, 2026-06-12)
+
+In the **Settings** window the user can't type into the text fields (Base URL,
+refinement model, hotkeys): existing text can be deleted but no new characters
+can be entered. As a knock-on, **Save doesn't persist** (a cleared-but-not-retyped
+Base URL fails validation, so the save is rejected — the error panel sits at the
+bottom of a scroll and is easy to miss). Hotkey chords can't be entered at all.
+
+## Root cause (code-confirmed)
+
+1. **Modeless WPF keyboard interop missing.** The Settings window is shown
+   modelessly — `window.Show()` in `TrayApplicationContext.OpenSettings`
+   ([TrayApplicationContext.cs](../../../src/Blurt.App/TrayApplicationContext.cs)) —
+   from the WinForms message loop (`Application.Run` in `Program.cs`), **without**
+   `System.Windows.Forms.Integration.ElementHost.EnableModelessKeyboardInterop(window)`.
+   Without that call, a modeless WPF window hosted in a WinForms loop doesn't get
+   keyboard input routed to it. (Onboarding works because it's **modal** —
+   `ShowDialog()` runs WPF's own dispatcher loop.)
+2. **Global trigger hook stays live while configuring.** The `WH_KEYBOARD_LL`
+   hook ([KeyboardHook.cs](../../../src/Blurt.App/KeyboardHook.cs)) isn't suspended
+   while a config window is open, so the trigger characters `, . -` (and AltGr
+   chords) get swallowed and can fire a dictation behind the window.
+
 ## What to build
 
-Make the hotkey fields in settings actually usable. Today they are free-text
-boxes that expect the user to type the chord string (e.g. `AltGr+,`) by hand,
-and there is no "press the keys to capture it" affordance. Worse: the global
-low-level keyboard hook stays active while the settings window is open, so when
-the user presses a real trigger chord to set it, the hook **swallows** the
-character *and* fires the dictation trigger behind the window (recording starts
-unseen). The net effect the user sees is "I can't type the hotkey in, and
-pressing the combo does nothing."
-
-Two parts of one slice:
-
-1. **Press-to-capture control:** clicking a hotkey field and pressing the chord
-   captures it (renders as `AltGr+,` and stores the same chord string the
-   resolver already understands). Non-trigger keys are rejected with the existing
-   guidance (only `, . -` after AltGr are valid). The capture state machine and
-   "is this a valid trigger chord" decision live in `Blurt.Core` (building on the
-   existing `HotkeyBinding`) and are unit-tested.
-2. **Suspend the hook while configuring:** while a modal config surface (settings
-   or onboarding) is focused, the global trigger hook must not fire dictation —
-   so capturing a chord, or just having the window open, never starts a recording
-   behind it. Thin App concern; restore the hook when the window closes.
+- **Enable modeless keyboard interop** for the Settings window
+  (`ElementHost.EnableModelessKeyboardInterop`) so its text fields accept input.
+  **Keep it modeless** — do not switch to `ShowDialog()` (the tray must stay
+  responsive; single-instance `Activate()` must still work).
+- **Suspend the global trigger hook while a configuration window is open/focused**
+  and restore it when it closes, so trigger characters can be typed and no
+  dictation fires behind the window. (Onboarding runs before the hook is installed,
+  so it's already safe; the guard is mainly for Settings.)
+- **Hotkey fields: press-to-capture.** Focus a hotkey field, press the chord
+  (e.g. AltGr+,) and it's captured and shown as `AltGr+,`. The capture/validation
+  decision (which (modifier, key) combos are valid triggers, → chord string) lives
+  in `Blurt.Core` and is unit-tested (building on `HotkeyBinding`); the WPF key
+  handling is the thin shell. Manual text entry of the chord must also still work.
+- **Make a rejected Save obvious** — when validation fails, surface the error panel
+  (scroll it into view / focus it) so the user sees why nothing was saved.
 
 ## Acceptance criteria
 
-- [ ] A hotkey field can be set by focusing it and pressing the chord; the captured chord persists and drives the trigger after save.
-- [ ] Invalid (non-trigger) chords are rejected in-place with clear guidance; valid chords (`AltGr + , . -`) are accepted.
-- [ ] While settings/onboarding is open and focused, pressing a trigger chord does not start a dictation behind the window.
-- [ ] Chord capture/validation logic is unit-tested in `Blurt.Core`.
-- [ ] No regression to remapping: a captured chord still re-installs the hook on save (issue 14 behaviour).
+- [ ] In Settings, every text field (Base URL, refinement model, hotkeys) accepts typed input.
+- [ ] While a config window is open, pressing a trigger chord does not start a dictation behind it.
+- [ ] A hotkey field can be set by focusing it and pressing the chord; manual text entry still works too; invalid chords are rejected with guidance.
+- [ ] A save rejected by validation visibly tells the user why (the error panel is brought into view).
+- [ ] Hotkey capture/validation logic is unit-tested in `Blurt.Core`; the suite stays green; the app builds.
 
 ## Blocked by
 
-- None functionally, but it edits `SettingsWindow` / `OnboardingWindow` / the
-  hook wiring that issues 16–18 also touch — best sequenced **after** 16–18 land
-  (like 19) to avoid restyling/re-merging the same controls twice.
+- None. Best done before 19 (visual polish) so the new hotkey control is styled once.
