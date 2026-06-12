@@ -38,6 +38,9 @@ internal partial class SettingsWindow : Window
 
     public SettingsWindow(SettingsStore store)
     {
+        // Before InitializeComponent so the XAML's StaticResource references to
+        // the shared theme styles resolve during parse (issue 19).
+        ThemeManager.Apply(this);
         InitializeComponent();
 
         _store = store;

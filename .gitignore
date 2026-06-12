@@ -15,3 +15,7 @@ Thumbs.db
 
 # Agent worktrees (transient, created by isolated subagents)
 .claude/worktrees/
+
+# Verification screenshots: local-only — they capture machine-specific paths
+# (e.g. %APPDATA% with a real username) and don't belong in a public repo.
+.scratch/blurt/screenshots/*.png

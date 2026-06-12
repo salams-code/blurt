@@ -115,6 +115,17 @@ internal sealed class TrayApplicationContext : ApplicationContext
         // gets the configured VK→trigger map, falling back to defaults for any
         // missing/garbage entry, so a remapped chord works from launch.
         _keyboardHook = InstallHook(config);
+
+        // Dev affordance for visual verification (issue 19): `Blurt.exe --settings`
+        // or `--onboarding` opens that surface straight away, so UI checks and
+        // screenshots don't have to click through the tray menu first.
+        var launchArgs = Environment.GetCommandLineArgs();
+        if (launchArgs.Contains("--settings"))
+            OpenSettings();
+        else if (launchArgs.Contains("--onboarding"))
+            RunOnboarding();
+        else if (launchArgs.Contains("--overlay"))
+            _overlay.Show(OverlayState.Listening);
     }
 
     // Create, wire, and install a keyboard hook whose resolver uses the hotkey

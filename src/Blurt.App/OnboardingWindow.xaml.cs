@@ -37,6 +37,9 @@ internal partial class OnboardingWindow : Window
 
     public OnboardingWindow(SettingsStore store, ModelProvisioner provisioner)
     {
+        // Before InitializeComponent so the XAML's StaticResource references to
+        // the shared theme styles resolve during parse (issue 19).
+        ThemeManager.Apply(this);
         InitializeComponent();
 
         _store = store;

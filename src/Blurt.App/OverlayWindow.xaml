@@ -11,26 +11,31 @@
         ShowActivated="False"
         SizeToContent="WidthAndHeight"
         Focusable="False"
-        IsHitTestVisible="False">
-    <!-- The pill: a rounded, semi-transparent dark capsule with a coloured status
-         dot on the left and a white label on the right. Padding/margins are sized
-         so SizeToContent yields a snug pill the placement maths can position. -->
-    <Border CornerRadius="14"
-            Background="#CC1E1E1E"
-            Padding="14,8"
-            Margin="8">
+        IsHitTestVisible="False"
+        FontFamily="Segoe UI">
+    <!-- The pill: a rounded capsule with a coloured status dot on the left and a
+         label on the right. Surface colours follow the system theme via
+         ThemeManager (issue 19): light capsule on light, dark on dark. Padding/
+         margins are sized so SizeToContent yields a snug pill the placement maths
+         can position. -->
+    <Border CornerRadius="17"
+            Background="{DynamicResource PillBackgroundBrush}"
+            BorderBrush="{DynamicResource PillBorderBrush}"
+            BorderThickness="1"
+            Padding="16,9"
+            Margin="10">
         <Border.Effect>
-            <DropShadowEffect BlurRadius="12" ShadowDepth="0" Opacity="0.5" Color="Black" />
+            <DropShadowEffect BlurRadius="14" ShadowDepth="2" Opacity="0.35" Color="Black" />
         </Border.Effect>
         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
             <Ellipse x:Name="StatusDot"
-                     Width="12" Height="12"
+                     Width="10" Height="10"
                      VerticalAlignment="Center"
                      Fill="#DC3545" />
             <TextBlock x:Name="StatusText"
                        Margin="10,0,0,0"
                        VerticalAlignment="Center"
-                       Foreground="White"
+                       Foreground="{DynamicResource PillTextBrush}"
                        FontSize="13"
                        FontWeight="SemiBold"
                        Text="listening…" />

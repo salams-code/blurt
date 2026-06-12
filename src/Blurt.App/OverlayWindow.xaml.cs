@@ -34,6 +34,9 @@ internal partial class OverlayWindow : Window
 
     public OverlayWindow()
     {
+        // Before InitializeComponent so the pill's DynamicResource surface
+        // brushes resolve from the shared theme (issue 19).
+        ThemeManager.Apply(this);
         InitializeComponent();
     }
 

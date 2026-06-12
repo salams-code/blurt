@@ -3,298 +3,260 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:ClassModifier="internal"
         Title="Blurt settings"
-        Width="520"
-        SizeToContent="Height"
+        Width="580" Height="700"
+        MinWidth="480" MinHeight="440"
         WindowStartupLocation="CenterScreen"
-        ResizeMode="NoResize"
         ShowInTaskbar="True"
-        Background="#FFF3F3F3"
+        Background="{DynamicResource WindowBackgroundBrush}"
+        Foreground="{DynamicResource TextPrimaryBrush}"
         FontFamily="Segoe UI"
         FontSize="13">
-    <Window.Resources>
-        <!-- A titled section: bold header over a white card. Applied per group. -->
-        <Style x:Key="GroupHeader" TargetType="TextBlock">
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="FontSize" Value="14" />
-            <Setter Property="Foreground" Value="#FF202020" />
-            <Setter Property="Margin" Value="0,0,0,8" />
-        </Style>
-        <Style x:Key="FieldLabel" TargetType="TextBlock">
-            <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Foreground" Value="#FF404040" />
-            <Setter Property="Margin" Value="0,0,12,0" />
-        </Style>
-        <Style x:Key="Card" TargetType="Border">
-            <Setter Property="Background" Value="White" />
-            <Setter Property="CornerRadius" Value="8" />
-            <Setter Property="Padding" Value="16" />
-            <Setter Property="Margin" Value="0,0,0,14" />
-            <Setter Property="BorderBrush" Value="#FFE0E0E0" />
-            <Setter Property="BorderThickness" Value="1" />
-        </Style>
-        <Style TargetType="TextBox">
-            <Setter Property="Padding" Value="4,3" />
-            <Setter Property="VerticalContentAlignment" Value="Center" />
-        </Style>
-        <Style TargetType="ComboBox">
-            <Setter Property="Padding" Value="4,3" />
-            <Setter Property="VerticalContentAlignment" Value="Center" />
-        </Style>
-        <Style TargetType="PasswordBox">
-            <Setter Property="Padding" Value="4,3" />
-            <Setter Property="VerticalContentAlignment" Value="Center" />
-        </Style>
-    </Window.Resources>
+    <!-- Styles/templates come from Themes/Controls.xaml, merged by
+         ThemeManager.Apply before InitializeComponent (issue 19). -->
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="760">
-        <StackPanel Margin="18">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
 
-            <!-- Transcription -->
-            <Border Style="{StaticResource Card}">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource GroupHeader}" Text="Transcription" />
-                    <Grid Margin="0,2">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="150" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Source" />
-                        <ComboBox x:Name="TranscriptionSourceBox" Grid.Column="1" />
-                    </Grid>
-                    <Grid Margin="0,8,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="150" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Local model" />
-                        <ComboBox x:Name="ModelSizeBox" Grid.Column="1"
-                                  SelectionChanged="OnModelSelectionChanged" />
-                    </Grid>
-                    <!-- Per-selection manual-install guidance (issue 18): the exact file,
-                         a working link, and the target folder, all derived from whatever
-                         model is selected — so a hand install matches what Blurt loads.
-                         Populated in OnModelSelectionChanged from the selected WhisperModel. -->
-                    <TextBlock x:Name="ModelDownloadHint"
-                               Margin="150,8,0,0"
-                               TextWrapping="Wrap"
-                               Foreground="#FF606060"
-                               FontSize="11" />
-                    <TextBlock Margin="150,4,0,0"
-                               TextWrapping="Wrap"
-                               Foreground="#FF808080"
-                               FontSize="11"
-                               Text="Changing the source or model takes effect after a restart." />
-                </StackPanel>
-            </Border>
+        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="20,18,20,6">
 
-            <!-- Microphone (issue 16) -->
-            <Border Style="{StaticResource Card}">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource GroupHeader}" Text="Microphone" />
-                    <Grid Margin="0,2">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="150" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Input device" />
-                        <ComboBox x:Name="MicrophoneBox" Grid.Column="1" />
-                    </Grid>
-                    <TextBlock Margin="0,8,0,0"
-                               TextWrapping="Wrap"
-                               Foreground="#FF808080"
-                               FontSize="11"
-                               Text="(Windows default) follows the current default input, so a newly-connected headset is used automatically. Pick a specific device to pin it." />
-                </StackPanel>
-            </Border>
+                <!-- Transcription -->
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource GroupHeader}" Text="Transcription" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Source" />
+                            <ComboBox x:Name="TranscriptionSourceBox" Grid.Column="1" />
+                        </Grid>
+                        <Grid Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Local model" />
+                            <ComboBox x:Name="ModelSizeBox" Grid.Column="1"
+                                      SelectionChanged="OnModelSelectionChanged" />
+                        </Grid>
+                        <!-- Per-selection manual-install guidance (issue 18): the exact file,
+                             a working link, and the target folder, all derived from whatever
+                             model is selected — so a hand install matches what Blurt loads.
+                             Populated in OnModelSelectionChanged from the selected WhisperModel. -->
+                        <TextBlock x:Name="ModelDownloadHint"
+                                   Style="{StaticResource Hint}"
+                                   Margin="150,8,0,0" />
+                        <TextBlock Style="{StaticResource Hint}"
+                                   Margin="150,4,0,0"
+                                   Text="Changing the source or model takes effect after a restart." />
+                    </StackPanel>
+                </Border>
 
-            <!-- Refinement -->
-            <Border Style="{StaticResource Card}">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource GroupHeader}" Text="Refinement (LLM)" />
-                    <Grid Margin="0,2">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="150" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Provider" />
-                        <ComboBox x:Name="RefinementProviderBox" Grid.Column="1"
-                                  SelectionChanged="OnRefinementProviderChanged" />
-                    </Grid>
-                    <TextBlock x:Name="ProviderHint"
-                               Margin="150,4,0,0"
-                               TextWrapping="Wrap"
-                               Foreground="#FF808080"
-                               FontSize="11"
-                               Text="" />
-                    <Grid Margin="0,8,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="150" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Base URL" />
-                        <TextBox x:Name="BaseUrlBox" Grid.Column="1" />
-                    </Grid>
-                    <Grid Margin="0,8,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="150" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Model" />
-                        <TextBox x:Name="RefinementModelBox" Grid.Column="1" />
-                    </Grid>
-                    <Grid Margin="0,8,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="150" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="API key" />
-                        <PasswordBox x:Name="ApiKeyBox" Grid.Column="1" />
-                    </Grid>
-                    <TextBlock x:Name="ApiKeyHint"
-                               Margin="0,8,0,0"
-                               TextWrapping="Wrap"
-                               Foreground="#FF808080"
-                               FontSize="11"
-                               Text="Leave blank to keep the stored key. Stored encrypted (DPAPI), never in plaintext." />
-                </StackPanel>
-            </Border>
+                <!-- Microphone (issue 16) -->
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource GroupHeader}" Text="Microphone" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Input device" />
+                            <ComboBox x:Name="MicrophoneBox" Grid.Column="1" />
+                        </Grid>
+                        <TextBlock Style="{StaticResource Hint}"
+                                   Text="(Windows default) follows the current default input, so a newly-connected headset is used automatically. Pick a specific device to pin it." />
+                    </StackPanel>
+                </Border>
 
-            <!-- Hotkeys -->
-            <Border Style="{StaticResource Card}">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource GroupHeader}" Text="Hotkeys" />
-                    <Grid Margin="0,2">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="150" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Fix" />
-                        <TextBox x:Name="HotkeyFixBox" Grid.Column="1"
-                                 PreviewKeyDown="OnHotkeyPreviewKeyDown" />
-                    </Grid>
-                    <Grid Margin="0,8,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="150" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="English" />
-                        <TextBox x:Name="HotkeyEnglishBox" Grid.Column="1"
-                                 PreviewKeyDown="OnHotkeyPreviewKeyDown" />
-                    </Grid>
-                    <Grid Margin="0,8,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="150" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Flex slot" />
-                        <TextBox x:Name="HotkeyFlexBox" Grid.Column="1"
-                                 PreviewKeyDown="OnHotkeyPreviewKeyDown" />
-                    </Grid>
-                    <TextBlock Margin="0,8,0,0"
-                               TextWrapping="Wrap"
-                               Foreground="#FF808080"
-                               FontSize="11"
-                               Text="Click a field and press the chord (e.g. AltGr+,) to set it, or type it by hand. The trigger characters , . - are supported; each trigger needs its own key." />
-                </StackPanel>
-            </Border>
+                <!-- Refinement -->
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource GroupHeader}" Text="Refinement (LLM)" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Provider" />
+                            <ComboBox x:Name="RefinementProviderBox" Grid.Column="1"
+                                      SelectionChanged="OnRefinementProviderChanged" />
+                        </Grid>
+                        <TextBlock x:Name="ProviderHint"
+                                   Style="{StaticResource Hint}"
+                                   Margin="150,6,0,0"
+                                   Text="" />
+                        <Grid Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Base URL" />
+                            <TextBox x:Name="BaseUrlBox" Grid.Column="1" />
+                        </Grid>
+                        <Grid Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Model" />
+                            <TextBox x:Name="RefinementModelBox" Grid.Column="1" />
+                        </Grid>
+                        <Grid Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="API key" />
+                            <PasswordBox x:Name="ApiKeyBox" Grid.Column="1" />
+                        </Grid>
+                        <TextBlock x:Name="ApiKeyHint"
+                                   Style="{StaticResource Hint}"
+                                   Text="Leave blank to keep the stored key. Stored encrypted (DPAPI), never in plaintext." />
+                    </StackPanel>
+                </Border>
 
-            <!-- Flex slot -->
-            <Border Style="{StaticResource Card}">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource GroupHeader}" Text="Flex slot" />
-                    <Grid Margin="0,2">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="150" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Mode order" />
-                        <TextBox x:Name="FlexOrderBox" Grid.Column="1" />
-                    </Grid>
-                    <TextBlock Margin="150,4,0,0"
-                               TextWrapping="Wrap"
-                               Foreground="#FF808080"
-                               FontSize="11"
-                               Text="Comma-separated: Pur, Bullets, Custom. The slot cycles through them in this order." />
-                    <Grid Margin="0,8,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="150" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Custom prompt"
-                                   VerticalAlignment="Top" Margin="0,4,12,0" />
-                        <TextBox x:Name="CustomPromptBox" Grid.Column="1"
-                                 AcceptsReturn="True"
-                                 TextWrapping="Wrap"
-                                 MinHeight="64"
-                                 VerticalScrollBarVisibility="Auto" />
-                    </Grid>
-                </StackPanel>
-            </Border>
+                <!-- Hotkeys -->
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource GroupHeader}" Text="Hotkeys" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Fix" />
+                            <TextBox x:Name="HotkeyFixBox" Grid.Column="1"
+                                     PreviewKeyDown="OnHotkeyPreviewKeyDown" />
+                        </Grid>
+                        <Grid Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="English" />
+                            <TextBox x:Name="HotkeyEnglishBox" Grid.Column="1"
+                                     PreviewKeyDown="OnHotkeyPreviewKeyDown" />
+                        </Grid>
+                        <Grid Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Flex slot" />
+                            <TextBox x:Name="HotkeyFlexBox" Grid.Column="1"
+                                     PreviewKeyDown="OnHotkeyPreviewKeyDown" />
+                        </Grid>
+                        <TextBlock Style="{StaticResource Hint}"
+                                   Text="Click a field and press the chord (e.g. AltGr+,) to set it, or type it by hand. The trigger characters , . - are supported; each trigger needs its own key." />
+                    </StackPanel>
+                </Border>
 
-            <!-- Overlay & sound -->
-            <Border Style="{StaticResource Card}">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource GroupHeader}" Text="Overlay &amp; sound" />
-                    <Grid Margin="0,2">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="150" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Overlay anchor" />
-                        <ComboBox x:Name="OverlayAnchorBox" Grid.Column="1" />
-                    </Grid>
-                    <CheckBox x:Name="SoundEnabledBox"
-                              Margin="0,12,0,0"
-                              Content="Play a sound on record start/stop" />
-                </StackPanel>
-            </Border>
+                <!-- Flex slot -->
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource GroupHeader}" Text="Flex slot" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Mode order" />
+                            <TextBox x:Name="FlexOrderBox" Grid.Column="1" />
+                        </Grid>
+                        <TextBlock Style="{StaticResource Hint}"
+                                   Margin="150,6,0,0"
+                                   Text="Comma-separated: Pur, Bullets, Custom. The slot cycles through them in this order." />
+                        <Grid Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Custom prompt"
+                                       VerticalAlignment="Top" Margin="0,6,12,0" />
+                            <TextBox x:Name="CustomPromptBox" Grid.Column="1"
+                                     AcceptsReturn="True"
+                                     TextWrapping="Wrap"
+                                     MinHeight="72"
+                                     VerticalContentAlignment="Top"
+                                     VerticalScrollBarVisibility="Auto" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
 
-            <!-- Inline validation errors (hidden until a save attempt fails).
-                 Focusable so a rejected save can scroll/focus it into view (issue 20). -->
-            <Border x:Name="ErrorPanel"
-                    Background="#FFFDECEC"
-                    BorderBrush="#FFE0B4B4"
-                    BorderThickness="1"
-                    CornerRadius="8"
-                    Padding="14"
-                    Margin="0,0,0,14"
-                    Focusable="True"
-                    Visibility="Collapsed">
-                <StackPanel>
-                    <TextBlock Text="Please fix the following before saving:"
-                               FontWeight="SemiBold"
-                               Foreground="#FFB00020"
-                               Margin="0,0,0,6" />
-                    <ItemsControl x:Name="ErrorList">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding}"
-                                           TextWrapping="Wrap"
-                                           Foreground="#FFB00020"
-                                           Margin="0,1" />
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </StackPanel>
-            </Border>
+                <!-- Overlay & sound -->
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource GroupHeader}" Text="Overlay &amp; sound" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Overlay anchor" />
+                            <ComboBox x:Name="OverlayAnchorBox" Grid.Column="1" />
+                        </Grid>
+                        <CheckBox x:Name="SoundEnabledBox"
+                                  Margin="0,14,0,0"
+                                  Content="Play a sound on record start/stop" />
+                    </StackPanel>
+                </Border>
 
-            <!-- Buttons -->
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button x:Name="CancelButton"
-                        Content="Cancel"
-                        Width="90"
-                        Height="30"
-                        Margin="0,0,10,0"
-                        IsCancel="True"
-                        Click="OnCancel" />
-                <Button x:Name="SaveButton"
-                        Content="Save"
-                        Width="90"
-                        Height="30"
-                        IsDefault="True"
-                        Click="OnSave" />
             </StackPanel>
+        </ScrollViewer>
 
-        </StackPanel>
-    </ScrollViewer>
+        <!-- Footer: validation errors + actions, pinned below the scroll area so a
+             rejected save is always visible (issue 20). -->
+        <Border Grid.Row="1"
+                BorderBrush="{DynamicResource CardBorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="20,12">
+            <StackPanel>
+                <Border x:Name="ErrorPanel"
+                        Background="{DynamicResource DangerBackgroundBrush}"
+                        BorderBrush="{DynamicResource DangerBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="14,10"
+                        Margin="0,0,0,12"
+                        Focusable="True"
+                        Visibility="Collapsed">
+                    <StackPanel>
+                        <TextBlock Text="Please fix the following before saving:"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource DangerTextBrush}"
+                                   Margin="0,0,0,6" />
+                        <ItemsControl x:Name="ErrorList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding}"
+                                               TextWrapping="Wrap"
+                                               Foreground="{DynamicResource DangerTextBrush}"
+                                               Margin="0,1" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button x:Name="CancelButton"
+                            Content="Cancel"
+                            Margin="0,0,10,0"
+                            IsCancel="True"
+                            Click="OnCancel" />
+                    <Button x:Name="SaveButton"
+                            Content="Save"
+                            Style="{StaticResource AccentButton}"
+                            IsDefault="True"
+                            Click="OnSave" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+    </Grid>
 </Window>
