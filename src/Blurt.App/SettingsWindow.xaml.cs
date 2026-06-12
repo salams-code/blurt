@@ -31,7 +31,8 @@ internal partial class SettingsWindow : Window
 
     /// <summary>
     /// The config that was persisted, set once <see cref="OnSave"/> succeeds (the
-    /// window then closes with <c>DialogResult == true</c>). Null if cancelled.
+    /// window then closes). Non-null here is the save signal the caller's Closed
+    /// handler gates on; null means the window was cancelled/closed without saving.
     /// </summary>
     public BlurtConfig? SavedConfig { get; private set; }
 
@@ -294,12 +295,15 @@ internal partial class SettingsWindow : Window
         }
 
         SavedConfig = config;
-        DialogResult = true;   // closes the dialog; caller applies the runtime changes
+        Close();   // modeless window: just close it. The Closed handler applies the
+                   // saved config (gated on SavedConfig, not DialogResult — which is
+                   // illegal to set on a Show()-modeless window and would crash).
     }
 
     private void OnCancel(object sender, RoutedEventArgs e)
     {
-        DialogResult = false;
+        Close();   // modeless: close without touching DialogResult. SavedConfig stays
+                   // null, so the Closed handler treats this as a cancel.
     }
 
     // Read every field back into an immutable BlurtConfig. The hotkey and flex-order

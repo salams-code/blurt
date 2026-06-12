@@ -1,6 +1,6 @@
 # 20 — Configuration windows must accept input (modeless WPF interop + suspend hook + hotkey capture)
 
-Status: ready-for-agent (root cause confirmed in HITL test, 2026-06-12)
+Status: done (HITL-verified 2026-06-12; close-crash regression fixed under issue 23)
 Type: AFK App-interop + AFK Core (hotkey capture/validation unit-tested) / HITL UI check
 
 ## Parent
@@ -59,3 +59,23 @@ bottom of a scroll and is easy to miss). Hotkey chords can't be entered at all.
 ## Blocked by
 
 - None. Best done before 19 (visual polish) so the new hotkey control is styled once.
+
+## Comments
+
+### HITL test 2026-06-12 (agent-guided)
+
+The four happy-path criteria were verified live in the running self-contained
+build:
+
+- ✅ Text fields accept typed input (real keyboard — the original swallow bug is gone).
+- ✅ Hotkey field captures a pressed chord (`AltGr+,`).
+- ✅ A trigger chord pressed with Settings focused does not fire a dictation behind it.
+- ✅ A rejected save surfaces the **specific** validation message (e.g. the hotkey-conflict
+  text naming the two triggers and the shared key) in the error panel, brought into view.
+
+A regression was found during this check: clicking **Cancel** (and a successful
+**Save**) crashed the whole app — the modeless conversion left `OnSave`/`OnCancel`
+setting `DialogResult`, which throws on a `Show()`-modeless window. Tracked and
+**fixed under issue 23**, then re-verified live (Save and Cancel both keep the app
+running and Save persists). With that resolved, all of issue 20's acceptance
+criteria are met — marked done.

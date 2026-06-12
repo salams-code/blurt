@@ -604,10 +604,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         window.Closed += (_, _) =>
         {
-            // Apply only on a genuine save (DialogResult true + a captured config).
-            // ApplySettings disposes this hook and installs a fresh, already-enabled
-            // one from the new bindings.
-            if (window.DialogResult == true && window.SavedConfig is { } saved)
+            // Apply only on a genuine save. The window is modeless (Show()), so it
+            // can't use DialogResult — SavedConfig is set only by OnSave, so it is
+            // the save signal. ApplySettings disposes this hook and installs a fresh,
+            // already-enabled one from the new bindings.
+            if (window.SavedConfig is { } saved)
             {
                 ApplySettings(saved);
             }
