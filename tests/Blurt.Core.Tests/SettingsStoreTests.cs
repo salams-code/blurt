@@ -59,6 +59,20 @@ public class SettingsStoreTests
                 RefinementProvider = RefinementProvider.LocalOpenAiCompatible,
                 RefinementBaseUrl = "http://localhost:11434/v1",
                 RefinementModel = "llama3.1",
+                // Per-provider endpoint memory (issue 24) must round-trip too.
+                RefinementEndpoints = new Dictionary<RefinementProvider, RefinementEndpoint>
+                {
+                    [RefinementProvider.OpenAi] = new()
+                    {
+                        BaseUrl = "https://eu.proxy.example/v1",
+                        Model = "gpt-4.1",
+                    },
+                    [RefinementProvider.LocalOpenAiCompatible] = new()
+                    {
+                        BaseUrl = "http://localhost:11434/v1",
+                        Model = "llama3.1",
+                    },
+                },
                 HotkeyBindings = new Dictionary<TriggerKind, string>
                 {
                     [TriggerKind.Fix] = "Ctrl+F1",

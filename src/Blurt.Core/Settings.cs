@@ -81,6 +81,18 @@ public sealed record BlurtConfig
     public string RefinementModel { get; init; } = "gpt-4o-mini";
 
     /// <summary>
+    /// Per-provider endpoint memory (issue 24): each provider's last base URL +
+    /// model, so switching providers in Settings swaps fields instead of leaving
+    /// the other provider's values behind, and switching back restores edits.
+    /// The active endpoint stays <see cref="RefinementBaseUrl"/>/<see cref="RefinementModel"/>
+    /// (runtime reads those; configs from before this setting keep working) —
+    /// this map remembers the rest. Empty by default: a provider that was never
+    /// visited resolves to <see cref="ProviderEndpoints.DefaultFor"/>.
+    /// </summary>
+    public IReadOnlyDictionary<RefinementProvider, RefinementEndpoint> RefinementEndpoints { get; init; } =
+        new Dictionary<RefinementProvider, RefinementEndpoint>();
+
+    /// <summary>
     /// Hotkey bindings as a map from trigger to its key chord description.
     /// Kept as strings so the JSON stays human-readable and the binding format
     /// can evolve without a schema migration (design default: AltGr + , . -).
@@ -157,7 +169,8 @@ public sealed record BlurtConfig
             && InputDeviceMode == other.InputDeviceMode
             && InputDeviceName == other.InputDeviceName
             && HotkeyBindingsEqual(HotkeyBindings, other.HotkeyBindings)
-            && FlexSlotOrder.SequenceEqual(other.FlexSlotOrder);
+            && FlexSlotOrder.SequenceEqual(other.FlexSlotOrder)
+            && EndpointsEqual(RefinementEndpoints, other.RefinementEndpoints);
     }
 
     public override int GetHashCode()
@@ -181,7 +194,25 @@ public sealed record BlurtConfig
         }
         foreach (var mode in FlexSlotOrder)
             hash.Add(mode);
+        foreach (var endpoint in RefinementEndpoints.OrderBy(e => e.Key))
+        {
+            hash.Add(endpoint.Key);
+            hash.Add(endpoint.Value);
+        }
         return hash.ToHashCode();
+    }
+
+    private static bool EndpointsEqual(
+        IReadOnlyDictionary<RefinementProvider, RefinementEndpoint> a,
+        IReadOnlyDictionary<RefinementProvider, RefinementEndpoint> b)
+    {
+        if (a.Count != b.Count) return false;
+        foreach (var (key, value) in a)
+        {
+            if (!b.TryGetValue(key, out var other) || other != value)
+                return false;
+        }
+        return true;
     }
 
     private static bool HotkeyBindingsEqual(

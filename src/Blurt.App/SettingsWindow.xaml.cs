@@ -29,6 +29,13 @@ internal partial class SettingsWindow : Window
     private readonly BlurtConfig _original;
     private readonly bool _hadApiKey;
 
+    // Per-provider endpoint memory (issue 24): which provider's values currently
+    // sit in the Base URL/Model fields (null until LoadFromConfig has run — the
+    // provider combo fires SelectionChanged during initialization), plus each
+    // provider's latest values, seeded from the persisted map.
+    private RefinementProvider? _fieldsProvider;
+    private Dictionary<RefinementProvider, RefinementEndpoint> _endpoints = new();
+
     /// <summary>
     /// The config that was persisted, set once <see cref="OnSave"/> succeeds (the
     /// window then closes). Non-null here is the save signal the caller's Closed
@@ -122,6 +129,8 @@ internal partial class SettingsWindow : Window
         RefinementProviderBox.SelectedValue = config.RefinementProvider;
         BaseUrlBox.Text = config.RefinementBaseUrl;
         RefinementModelBox.Text = config.RefinementModel;
+        _endpoints = new Dictionary<RefinementProvider, RefinementEndpoint>(config.RefinementEndpoints);
+        _fieldsProvider = config.RefinementProvider;   // fields now hold this provider's values
         UpdateProviderHint();
 
         // Never surface the stored key. Show a placeholder when one exists; blank
@@ -270,12 +279,38 @@ internal partial class SettingsWindow : Window
         e.Handled = true;
     }
 
-    // Switching providers only re-explains the endpoint/key contract — it never
-    // touches the stored key (the "(unchanged)" placeholder still preserves it on
-    // save) nor rewrites the base URL, which the user owns. The local path is
-    // keyless: leave the key blank and point the base URL at the Ollama endpoint.
+    // Switching providers treats the two as separate paths (issue 24): the
+    // current field values are remembered for the provider being left, and the
+    // target provider's remembered (or default) base URL + model are swapped in —
+    // so an Ollama URL never lingers under "OpenAI" and edits survive toggling.
+    // The pure decision lives in Core's ProviderEndpoints.Switch; the stored API
+    // key is never touched (the "(unchanged)" placeholder still preserves it).
     private void OnRefinementProviderChanged(object sender, SelectionChangedEventArgs e)
-        => UpdateProviderHint();
+    {
+        // Fires during initialization (before LoadFromConfig) — only act on a
+        // real user switch, once the fields belong to a known provider.
+        if (_fieldsProvider is { } from
+            && RefinementProviderBox.SelectedValue is RefinementProvider to
+            && to != from)
+        {
+            var (target, remembered) = ProviderEndpoints.Switch(
+                from, FieldsEndpoint(), to, _endpoints);
+
+            _endpoints = new Dictionary<RefinementProvider, RefinementEndpoint>(remembered);
+            _fieldsProvider = to;
+            BaseUrlBox.Text = target.BaseUrl;
+            RefinementModelBox.Text = target.Model;
+        }
+
+        UpdateProviderHint();
+    }
+
+    // The endpoint currently shown in the Base URL/Model fields.
+    private RefinementEndpoint FieldsEndpoint() => new()
+    {
+        BaseUrl = BaseUrlBox.Text.Trim(),
+        Model = RefinementModelBox.Text.Trim(),
+    };
 
     private void UpdateProviderHint()
     {
@@ -333,6 +368,13 @@ internal partial class SettingsWindow : Window
             RefinementProvider = (RefinementProvider)RefinementProviderBox.SelectedValue,
             RefinementBaseUrl = BaseUrlBox.Text.Trim(),
             RefinementModel = RefinementModelBox.Text.Trim(),
+            // Issue 24: persist both providers' endpoints — the map remembered
+            // from switches, with the visible fields as the active provider's
+            // latest word.
+            RefinementEndpoints = new Dictionary<RefinementProvider, RefinementEndpoint>(_endpoints)
+            {
+                [(RefinementProvider)RefinementProviderBox.SelectedValue] = FieldsEndpoint(),
+            },
             HotkeyBindings = new Dictionary<TriggerKind, string>
             {
                 [TriggerKind.Fix] = HotkeyFixBox.Text.Trim(),

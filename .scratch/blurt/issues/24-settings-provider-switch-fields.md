@@ -1,6 +1,6 @@
 # 24 — Settings provider switch should present per-provider endpoint fields (parity with onboarding)
 
-Status: proposed — awaiting triage (found in HITL test, 2026-06-12)
+Status: ready-for-human (implemented 2026-06-12, per-provider memory; awaiting HITL UX check)
 Type: AFK Core (per-provider endpoint config) + App UI / HITL UX check
 
 ## Parent
@@ -41,10 +41,34 @@ settings UI is the thin shell. Keep onboarding and settings consistent.
 
 ## Acceptance criteria (draft — refine in triage)
 
-- [ ] Switching provider in Settings updates the Base URL and Model fields to that provider's values (not just the hint).
-- [ ] Switching back restores the other provider's values (per-provider memory), without deleting the stored API key.
-- [ ] Onboarding and Settings present the provider choice consistently.
-- [ ] Per-provider endpoint resolution is unit-tested in `Blurt.Core`; the suite stays green; the app builds.
+- [x] Switching provider in Settings updates the Base URL and Model fields to that provider's values (not just the hint).
+- [x] Switching back restores the other provider's values (per-provider memory), without deleting the stored API key.
+- [x] Onboarding and Settings present the provider choice consistently.
+- [x] Per-provider endpoint resolution is unit-tested in `Blurt.Core`; the suite stays green; the app builds.
+
+## Comments
+
+**2026-06-12 (agent) — triage + build:** Took the user-preferred **remember per
+provider** design (TDD):
+
+- Core `ProviderEndpoints` — `DefaultFor(provider)` (OpenAI: api.openai.com/v1 +
+  gpt-4o-mini; Local: localhost:11434/v1 + llama3.1) and pure
+  `Switch(from, current, to, remembered)` → (target endpoint, updated map).
+  3 unit tests: defaults on first visit, edits survive a round trip, the
+  returned map carries both providers' latest values.
+- `BlurtConfig.RefinementEndpoints` (enum-keyed map, structural equality,
+  JSON round-trip covered in the store test). **Migration:** active
+  `RefinementBaseUrl`/`RefinementModel` stay the runtime source of truth, so old
+  configs load unchanged; the map starts empty and gets seeded from the live
+  fields on the first switch — a custom URL is never lost.
+- Settings UI: `OnRefinementProviderChanged` swaps the fields via Core's
+  `Switch` (guarded against the initialization-time SelectionChanged); save
+  persists the map with the visible fields as the active provider's values.
+  The stored API key is untouched throughout (RefinerAuth gating from 17).
+
+Verified live via UI Automation against the running window: OpenAI →
+Local shows `http://localhost:11434/v1` / `llama3.1`; switching back restores
+`https://api.openai.com/v1` / `gpt-4o-mini`. Suite green (176/176).
 
 ## Blocked by
 
