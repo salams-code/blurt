@@ -1,6 +1,6 @@
 # 17 — Switchable refinement provider with persistent key
 
-Status: ready-for-agent
+Status: done (HITL-verified 2026-06-12; settings field-swap enhancement split out as issue 24)
 Type: AFK logic (provider/key-application unit-tested) / HITL UI check
 
 ## Parent
