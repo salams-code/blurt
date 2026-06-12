@@ -151,6 +151,21 @@
                         <TextBlock x:Name="ModelHint"
                                    Style="{StaticResource Hint}"
                                    Text="" />
+                        <!-- Copy affordances (issue 25), shown whenever the manual-
+                             install guidance is — the URL and folder get pasted into
+                             a browser / Explorer, never retyped. -->
+                        <StackPanel x:Name="ModelCopyPanel"
+                                    Orientation="Horizontal"
+                                    Margin="0,6,0,0"
+                                    Visibility="Collapsed">
+                            <Button Content="Copy link"
+                                    Style="{StaticResource LinkButton}"
+                                    Click="OnCopyModelLink" />
+                            <Button Content="Copy folder"
+                                    Style="{StaticResource LinkButton}"
+                                    Margin="14,0,0,0"
+                                    Click="OnCopyModelFolder" />
+                        </StackPanel>
                     </StackPanel>
                 </Border>
             </StackPanel>

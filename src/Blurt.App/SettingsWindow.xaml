@@ -51,6 +51,18 @@
                         <TextBlock x:Name="ModelDownloadHint"
                                    Style="{StaticResource Hint}"
                                    Margin="150,8,0,0" />
+                        <!-- Copy affordances (issue 25): the corporate-proxy flow is a
+                             hand install, so the URL and target folder must be copyable
+                             rather than retyped from the hint above. -->
+                        <StackPanel Orientation="Horizontal" Margin="150,6,0,0">
+                            <Button Content="Copy link"
+                                    Style="{StaticResource LinkButton}"
+                                    Click="OnCopyModelLink" />
+                            <Button Content="Copy folder"
+                                    Style="{StaticResource LinkButton}"
+                                    Margin="14,0,0,0"
+                                    Click="OnCopyModelFolder" />
+                        </StackPanel>
                         <TextBlock Style="{StaticResource Hint}"
                                    Margin="150,4,0,0"
                                    Text="Changing the source or model takes effect after a restart." />

@@ -186,6 +186,18 @@ internal partial class SettingsWindow : Window
             $"and place it in {ModelsDirectory}.";
     }
 
+    // Copy affordances for the manual-install guidance (issue 25): the URL and the
+    // target folder are the two strings a blocked colleague pastes into a browser
+    // and Explorer — both derived from the current selection, like the hint itself.
+    private void OnCopyModelLink(object sender, RoutedEventArgs e)
+    {
+        if (ModelSizeBox.SelectedItem is WhisperModel model)
+            ClipboardCopy.WithFeedback((System.Windows.Controls.Button)sender, model.DownloadUrl);
+    }
+
+    private void OnCopyModelFolder(object sender, RoutedEventArgs e)
+        => ClipboardCopy.WithFeedback((System.Windows.Controls.Button)sender, ModelsDirectory);
+
     // Where the runtime expects model files — derived the same way the provisioner
     // does (issue 18), so the folder shown here is exactly where Blurt loads from.
     private static string ModelsDirectory =>

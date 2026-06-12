@@ -347,6 +347,7 @@ internal partial class OnboardingWindow : Window
             ModelProgress.Visibility = Visibility.Collapsed;
             DownloadButton.Visibility = Visibility.Collapsed;
             ModelHint.Text = "Nothing to do — you're ready to dictate.";
+            ModelCopyPanel.Visibility = Visibility.Collapsed;
             return;
         }
 
@@ -354,6 +355,7 @@ internal partial class OnboardingWindow : Window
         DownloadButton.Visibility = Visibility.Visible;
         DownloadButton.IsEnabled = true;
         ModelHint.Text = ManualInstallHint(model);
+        ModelCopyPanel.Visibility = Visibility.Visible;   // issue 25: hint shown → copyable
         await Task.CompletedTask;
     }
 
@@ -365,6 +367,7 @@ internal partial class OnboardingWindow : Window
         ModelProgress.IsIndeterminate = true;
         ModelStatus.Text = $"Downloading the {model.Size} model…";
         ModelHint.Text = "This can take a few minutes on first run.";
+        ModelCopyPanel.Visibility = Visibility.Collapsed;
 
         try
         {
@@ -388,8 +391,19 @@ internal partial class OnboardingWindow : Window
             DownloadButton.Visibility = Visibility.Visible;
             DownloadButton.IsEnabled = true;
             ModelHint.Text = $"{ex.Message}  {ManualInstallHint(model)}";
+            ModelCopyPanel.Visibility = Visibility.Visible;   // issue 25
         }
     }
+
+    // Copy affordances for the manual-install guidance (issue 25) — same strings
+    // the hint embeds, taken from the config's selected model and the provisioner.
+    private void OnCopyModelLink(object sender, RoutedEventArgs e)
+        => ClipboardCopy.WithFeedback(
+            (System.Windows.Controls.Button)sender, _config.WhisperModel.DownloadUrl);
+
+    private void OnCopyModelFolder(object sender, RoutedEventArgs e)
+        => ClipboardCopy.WithFeedback(
+            (System.Windows.Controls.Button)sender, _provisioner.ModelsDirectory);
 
     // Per-selection manual-install guidance (issue 18): the exact filename, a working
     // resolve link, and the target folder, all derived from the selected model so a

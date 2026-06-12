@@ -1,6 +1,6 @@
 # 25 — Manual-install guidance must be copyable (download link + target folder)
 
-Status: ready-for-agent (found in HITL test, 2026-06-12)
+Status: ready-for-human (implemented 2026-06-12, agent-verified via UIA; awaiting HITL UX check)
 Type: AFK App UI (thin shell over existing Core strings) / HITL UX check
 
 ## Parent
@@ -31,9 +31,24 @@ huggingface URL and an AppData path by hand.
 
 ## Acceptance criteria
 
-- [ ] The download link and target folder shown in the model-install guidance can be selected/copied (no retyping).
-- [ ] Works for the currently selected model (link/folder still derived from the selection, per issue 18).
-- [ ] The suite stays green; the app builds.
+- [x] The download link and target folder shown in the model-install guidance can be selected/copied (no retyping).
+- [x] Works for the currently selected model (link/folder still derived from the selection, per issue 18).
+- [x] The suite stays green; the app builds.
+
+## Comments
+
+**2026-06-12 (agent):** Implemented as "Copy link" / "Copy folder" link-buttons
+(LinkButton style from the issue-19 theme) under the hint in **Settings**
+(`OnCopyModelLink`/`OnCopyModelFolder`, derived from the live combo selection)
+and in the **onboarding model step** (`ModelCopyPanel`, shown exactly when the
+manual-install guidance is shown: model missing, or download failed). Shared
+`ClipboardCopy.WithFeedback` flashes "Copied ✓" and fails soft if the clipboard
+is locked. The runtime failure notice (issue 22) stays a balloon — no copyable
+surface there; its copy path is Settings.
+
+Verified: clicked both buttons via UI Automation — clipboard contained
+`https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small-q5_1.bin`
+and the models folder `%APPDATA%\Blurt\models`. Suite green (163/163).
 
 ## Blocked by
 
