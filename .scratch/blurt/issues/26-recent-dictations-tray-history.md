@@ -1,6 +1,6 @@
 # 26 — Recent-dictations history in the tray menu (recover a lost paste)
 
-Status: proposed — awaiting triage (feature request, 2026-06-12)
+Status: ready-for-human (implemented 2026-06-12, TDD; awaiting HITL UX check)
 Type: AFK Core (ring buffer, unit-tested) + App UI (tray submenu) / HITL UX check
 
 ## Parent
@@ -41,10 +41,37 @@ right-click menu**, so a lost or mis-targeted paste can be recovered.
 
 ## Acceptance criteria (draft — refine in triage)
 
-- [ ] The last 3 dictation results are retained (newest first, oldest evicted) in memory only.
-- [ ] The tray right-click menu shows a "Recent dictations" submenu; selecting an entry puts that text on the clipboard.
-- [ ] History is never persisted to disk and is empty on a fresh launch.
-- [ ] Ring-buffer logic is unit-tested in `Blurt.Core`; suite stays green; app builds.
+- [x] The last 3 dictation results are retained (newest first, oldest evicted) in memory only.
+- [x] The tray right-click menu shows a "Recent dictations" submenu; selecting an entry puts that text on the clipboard.
+- [x] History is never persisted to disk and is empty on a fresh launch.
+- [x] Ring-buffer logic is unit-tested in `Blurt.Core`; suite stays green; app builds.
+
+## Triage decisions (2026-06-12, agent — per the issue's own recommendations)
+
+- Click action: **copy to clipboard** (the safe default). No re-inject.
+- Count: **fixed 3** (`RecentDictations.Capacity`), not configurable.
+- Failure-case hint: **not now** — the InjectionBlocked notice already says the
+  text is on the clipboard; the history is the silent second net. Revisit if
+  HITL shows people don't find the submenu.
+
+## Comments
+
+**2026-06-12 (agent):** Built TDD (red-green per behaviour):
+
+- Core `RecentDictations` — capacity 3, newest first, eviction, blank results
+  ignored, plus a pure `Preview()` (whitespace collapse + 48-char ellipsis cut)
+  for the menu labels. 7 unit tests.
+- Core `DictationPipeline` got an optional `onResult` sink reporting the final
+  (post-refinement) text — also on a blocked paste (clipboard is volatile, the
+  history is the recovery net), never for non-speech. 3 unit tests.
+- App: "Recent dictations" submenu atop the tray menu, rebuilt on every open;
+  entries copy back to the clipboard fail-soft; "(no dictations yet)" disabled
+  placeholder when empty. Both pipeline call sites pass `onResult`.
+- RAM-only: the buffer lives in `TrayApplicationContext`; nothing is persisted.
+
+Suite green (173/173). HITL check: `Blurt.exe --traymenu` seeds three sample
+entries and pops the menu (screen was off during the agent run, so no
+screenshot — the dev arg makes the manual check a 10-second job).
 
 ## Blocked by
 

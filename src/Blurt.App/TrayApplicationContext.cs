@@ -49,6 +49,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
         new DpapiSecretProtector());
     private readonly HttpClient _httpClient = new();
 
+    // Recent-dictations history (issue 26): the last few final texts, newest
+    // first, RAM-only — recovers a paste that landed in the void. Surfaced as a
+    // tray submenu whose entries copy back to the clipboard.
+    private readonly RecentDictations _recentDictations = new();
+
     // Flex-slot state (issue 07). The classifier turns the key's hold duration
     // into tap-vs-hold; the cycle rotates Pur → Bullets → Custom on each tap.
     // Both are pure Core logic; this glue only measures time and dispatches.
@@ -69,8 +74,15 @@ internal sealed class TrayApplicationContext : ApplicationContext
     public TrayApplicationContext()
     {
         var menu = new ContextMenuStrip();
+        var recentMenu = new ToolStripMenuItem("Recent dictations");
+        menu.Items.Add(recentMenu);
+        menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Settings…", image: null, (_, _) => OpenSettings());
         menu.Items.Add("Exit", image: null, (_, _) => ExitApp());
+
+        // Rebuild the history submenu each time the menu opens, so it always
+        // shows the current ring-buffer contents (issue 26).
+        menu.Opening += (_, _) => PopulateRecentDictations(recentMenu);
 
         // First-run onboarding (issue 15): if no setup has been completed yet (fresh
         // install → Default config with OnboardingCompleted=false), walk the guided
@@ -126,6 +138,16 @@ internal sealed class TrayApplicationContext : ApplicationContext
             RunOnboarding();
         else if (launchArgs.Contains("--overlay"))
             _overlay.Show(OverlayState.Listening);
+        else if (launchArgs.Contains("--traymenu"))
+        {
+            // Seed the history with sample entries and pop the menu, so the
+            // recent-dictations submenu (issue 26) can be checked without
+            // dictating three times first.
+            _recentDictations.Add("Erstes Diktat — ein kurzer Satz.");
+            _recentDictations.Add("- erstens\n- zweitens\n- drittens");
+            _recentDictations.Add("Dies ist ein sehr langes drittes Diktat, das deutlich über die achtundvierzig Zeichen der Vorschau hinausgeht.");
+            menu.Show(new System.Drawing.Point(300, 300));
+        }
     }
 
     // Create, wire, and install a keyboard hook whose resolver uses the hotkey
@@ -327,7 +349,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
             // CPU-heavy decode onto the thread pool to keep the tray responsive.
             var pipeline = new DictationPipeline(
                 new OffloadedTranscriber(transcriber),
-                _textInjector);
+                _textInjector,
+                onResult: _recentDictations.Add);   // issue 26: recoverable history
 
             var outcome = await pipeline.RunAsync(audio);
 
@@ -411,7 +434,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
             var pipeline = new DictationPipeline(
                 new OffloadedTranscriber(transcriber),
                 _textInjector,
-                refine: (text, ct) => refiner.RefineAsync(text, systemPrompt, ct));
+                refine: (text, ct) => refiner.RefineAsync(text, systemPrompt, ct),
+                onResult: _recentDictations.Add);   // issue 26: recoverable history
 
             var outcome = await pipeline.RunAsync(audio);
 
@@ -577,6 +601,48 @@ internal sealed class TrayApplicationContext : ApplicationContext
             // Never let onboarding block launch: fall through to the tray. The flow
             // simply re-offers next start (OnboardingCompleted stays false).
             System.Diagnostics.Debug.WriteLine($"Onboarding skipped: {ex}");
+        }
+    }
+
+    // Fill the "Recent dictations" submenu from the ring buffer (issue 26).
+    // Newest first, one truncated single-line preview per entry; clicking copies
+    // the full text back to the clipboard — the safe recovery default (the user
+    // pastes it where they actually want it, instead of a blind re-inject into
+    // whatever happens to have focus now).
+    private void PopulateRecentDictations(ToolStripMenuItem recentMenu)
+    {
+        recentMenu.DropDownItems.Clear();
+
+        if (_recentDictations.Items.Count == 0)
+        {
+            recentMenu.DropDownItems.Add(new ToolStripMenuItem("(no dictations yet)")
+            {
+                Enabled = false,
+            });
+            return;
+        }
+
+        foreach (var text in _recentDictations.Items)
+        {
+            var captured = text;   // each click copies its own entry
+            recentMenu.DropDownItems.Add(new ToolStripMenuItem(
+                RecentDictations.Preview(captured),
+                image: null,
+                (_, _) => CopyToClipboard(captured)));
+        }
+    }
+
+    // Fail-soft clipboard write (the clipboard can be transiently locked by
+    // another process): a failed copy is a notice, never a crash.
+    private void CopyToClipboard(string text)
+    {
+        try
+        {
+            Clipboard.SetText(text);
+        }
+        catch
+        {
+            _notifier.Notify("Couldn't copy to the clipboard — try again.", NoticeLevel.Warning);
         }
     }
 

@@ -48,15 +48,18 @@ public sealed class DictationPipeline
     private readonly ITranscriber _transcriber;
     private readonly ITextInjector _injector;
     private readonly Func<string, CancellationToken, Task<string>>? _refine;
+    private readonly Action<string>? _onResult;
 
     public DictationPipeline(
         ITranscriber transcriber,
         ITextInjector injector,
-        Func<string, CancellationToken, Task<string>>? refine = null)
+        Func<string, CancellationToken, Task<string>>? refine = null,
+        Action<string>? onResult = null)
     {
         _transcriber = transcriber;
         _injector = injector;
         _refine = refine;
+        _onResult = onResult;
     }
 
     /// <summary>
@@ -106,6 +109,12 @@ public sealed class DictationPipeline
                 refinedOffline = true;
             }
         }
+
+        // Report the final text — what is about to go to the cursor — to the
+        // optional sink (issue 26: the tray's recent-dictations history). Also on
+        // a blocked paste below: the clipboard copy is volatile, the history is
+        // the recovery net.
+        _onResult?.Invoke(text);
 
         // A false return means the paste was blocked by the focused app — the
         // injector has left the text on the clipboard, so nothing is lost. This

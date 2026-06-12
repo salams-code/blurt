@@ -181,6 +181,56 @@ public class DictationPipelineTests
         Assert.Equal(DictationOutcome.NothingTranscribed, outcome);
     }
 
+    [Fact]
+    public async Task The_final_text_is_reported_to_the_result_sink()
+    {
+        // Issue 26: the tray history records what a dictation produced. The sink
+        // gets the *final* (post-refinement) text — what actually went to the
+        // cursor — not the raw transcript.
+        var transcriber = new FakeTranscriber { Text = "hallo welt" };
+        var injector = new RecordingInjector();
+        string? recorded = null;
+        var pipeline = new DictationPipeline(
+            transcriber,
+            injector,
+            refine: (text, _) => Task.FromResult(text.ToUpperInvariant()),
+            onResult: text => recorded = text);
+
+        await pipeline.RunAsync(Audio());
+
+        Assert.Equal("HALLO WELT", recorded);
+    }
+
+    [Fact]
+    public async Task A_blocked_paste_still_reports_the_text_to_the_result_sink()
+    {
+        // InjectionBlocked leaves the text on the clipboard — but the clipboard
+        // is volatile, so the history is exactly the recovery net this case needs.
+        var transcriber = new FakeTranscriber { Text = "hallo welt" };
+        var injector = new RecordingInjector { Result = false };
+        string? recorded = null;
+        var pipeline = new DictationPipeline(
+            transcriber, injector, onResult: text => recorded = text);
+
+        await pipeline.RunAsync(Audio());
+
+        Assert.Equal("hallo welt", recorded);
+    }
+
+    [Fact]
+    public async Task Nothing_is_reported_when_nothing_was_transcribed()
+    {
+        var transcriber = new FakeTranscriber { Text = "[BLANK_AUDIO]" };
+        var injector = new RecordingInjector();
+        string? recorded = null;
+        var pipeline = new DictationPipeline(
+            transcriber, injector, onResult: text => recorded = text);
+
+        await pipeline.RunAsync(Audio());
+
+        Assert.Null(recorded);
+    }
+
     // --- hand-rolled fakes over the pipeline's seams ---
 
     private static Stream Audio() => new MemoryStream(new byte[] { 1, 2, 3 });
