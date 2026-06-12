@@ -1,6 +1,6 @@
 # 18 — Use the selected Whisper model + per-selection download guidance
 
-Status: ready-for-agent
+Status: done (HITL-verified 2026-06-12; hint-copyability split out as issue 25)
 Type: AFK logic (model/path resolution unit-tested) / HITL UI check
 
 ## Parent
