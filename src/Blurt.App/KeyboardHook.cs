@@ -26,6 +26,13 @@ internal sealed class KeyboardHook : IDisposable
     private readonly LowLevelKeyboardProc _proc;   // held in a field so the GC never collects the callback
     private IntPtr _hookHandle;
 
+    // Suspends trigger processing without uninstalling the hook (issue 20). While a
+    // config window is open we suspend so the callback passes every keystroke through
+    // unchanged — the trigger characters , . - (and AltGr chords) reach the focused
+    // text field instead of being swallowed or firing a dictation behind the window.
+    // Volatile because the low-level hook callback can run off the UI thread.
+    private volatile bool _suspended;
+
     /// <summary>Raised on each recognised Blurt trigger (down and up), on the UI thread.</summary>
     public event Action<TriggerEvent>? TriggerObserved;
 
@@ -45,6 +52,17 @@ internal sealed class KeyboardHook : IDisposable
         _proc = HookCallback;
     }
 
+    /// <summary>
+    /// Suspends trigger handling while a configuration window is open (issue 20):
+    /// the hook stays installed but the callback passes every keystroke through, so
+    /// trigger characters can be typed into the settings fields and no dictation
+    /// fires behind the window. Pair each call with <see cref="Resume"/> on close.
+    /// </summary>
+    public void Suspend() => _suspended = true;
+
+    /// <summary>Re-enables trigger handling after a <see cref="Suspend"/>.</summary>
+    public void Resume() => _suspended = false;
+
     public void Install()
     {
         if (_hookHandle != IntPtr.Zero)
@@ -62,7 +80,9 @@ internal sealed class KeyboardHook : IDisposable
 
     private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
     {
-        if (nCode >= 0)
+        // Suspended (a config window is open): forward every event untouched so the
+        // trigger characters reach the focused field and nothing is swallowed.
+        if (nCode >= 0 && !_suspended)
         {
             var message = (int)wParam;
             KeyEdge? edge = message switch

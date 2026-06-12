@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using Blurt.Core;
 using NAudio.Wave;
 
@@ -200,6 +201,59 @@ internal partial class SettingsWindow : Window
     private static string ChordFor(BlurtConfig config, TriggerKind trigger) =>
         config.HotkeyBindings.TryGetValue(trigger, out var chord) ? chord : "";
 
+    // Press-to-capture for the hotkey fields (issue 20): focus a field and press the
+    // chord (e.g. AltGr+,) to set it, instead of typing the text by hand. The pure
+    // decision — is this (AltGr, key) a valid trigger chord, and its chord string —
+    // lives in Core's HotkeyCapture; this handler is the thin WPF shell that reads the
+    // key state and writes the field. Manual text entry still works: when no AltGr is
+    // held we don't intercept, so typing "AltGr+," by hand is unaffected.
+    private void OnHotkeyPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.TextBox box)
+            return;
+
+        // When Alt is held WPF routes the keystroke as Key.System with the real key in
+        // SystemKey; otherwise it's in Key. Resolve to a Win32 virtual-key code, which
+        // is layout-independent (AltGr surfaces as Ctrl+Alt, so the VK is what matters).
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+
+        // Ignore bare modifier presses (AltGr/Ctrl/Shift on their own) so the field
+        // doesn't react until an actual character key is pressed with the modifier.
+        if (key is Key.LeftAlt or Key.RightAlt or Key.LeftCtrl or Key.RightCtrl
+            or Key.LeftShift or Key.RightShift)
+            return;
+
+        // AltGr on a German layout is RightAlt, which Windows also raises as Ctrl+Alt.
+        // Accept either signal so capture works regardless of how the modifier surfaces.
+        var altGrHeld = Keyboard.IsKeyDown(Key.RightAlt)
+            || (Keyboard.Modifiers.HasFlag(ModifierKeys.Control)
+                && Keyboard.Modifiers.HasFlag(ModifierKeys.Alt));
+
+        // Without a modifier, let the keystroke through so the user can still type a
+        // chord string by hand (the manual-entry fallback the issue requires).
+        if (!altGrHeld)
+            return;
+
+        var vk = KeyInterop.VirtualKeyFromKey(key);
+        if (HotkeyCapture.TryCapture(altGrHeld, vk, out var chord))
+        {
+            box.Text = chord;
+            box.CaretIndex = chord.Length;
+            HideErrors();
+        }
+        else
+        {
+            // A modifier chord that isn't a valid Blurt trigger — tell the user which
+            // keys are supported rather than silently writing a bad value.
+            ShowErrors(["Only AltGr + , . - can be captured as a hotkey. " +
+                "Press one of those, or type the chord (e.g. AltGr+,) by hand."]);
+        }
+
+        // Either way the chord was a capture attempt, not text to insert — consume it
+        // so the AltGr character doesn't also land in the field.
+        e.Handled = true;
+    }
+
     // Switching providers only re-explains the endpoint/key contract — it never
     // touches the stored key (the "(unchanged)" placeholder still preserves it on
     // save) nor rewrites the base URL, which the user owns. The local path is
@@ -305,6 +359,17 @@ internal partial class SettingsWindow : Window
     {
         ErrorList.ItemsSource = errors.ToList();
         ErrorPanel.Visibility = Visibility.Visible;
+
+        // Issue 20: the error panel sits at the bottom of a scrolling form, so a
+        // rejected save was easy to miss. Bring it into view (and focus it) once the
+        // layout has updated, so the user actually sees why nothing was saved.
+        Dispatcher.BeginInvoke(
+            new Action(() =>
+            {
+                ErrorPanel.BringIntoView();
+                ErrorPanel.Focus();
+            }),
+            System.Windows.Threading.DispatcherPriority.Background);
     }
 
     private void HideErrors()

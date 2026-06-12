@@ -169,7 +169,8 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Fix" />
-                        <TextBox x:Name="HotkeyFixBox" Grid.Column="1" />
+                        <TextBox x:Name="HotkeyFixBox" Grid.Column="1"
+                                 PreviewKeyDown="OnHotkeyPreviewKeyDown" />
                     </Grid>
                     <Grid Margin="0,8,0,0">
                         <Grid.ColumnDefinitions>
@@ -177,7 +178,8 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="English" />
-                        <TextBox x:Name="HotkeyEnglishBox" Grid.Column="1" />
+                        <TextBox x:Name="HotkeyEnglishBox" Grid.Column="1"
+                                 PreviewKeyDown="OnHotkeyPreviewKeyDown" />
                     </Grid>
                     <Grid Margin="0,8,0,0">
                         <Grid.ColumnDefinitions>
@@ -185,13 +187,14 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Flex slot" />
-                        <TextBox x:Name="HotkeyFlexBox" Grid.Column="1" />
+                        <TextBox x:Name="HotkeyFlexBox" Grid.Column="1"
+                                 PreviewKeyDown="OnHotkeyPreviewKeyDown" />
                     </Grid>
                     <TextBlock Margin="0,8,0,0"
                                TextWrapping="Wrap"
                                Foreground="#FF808080"
                                FontSize="11"
-                               Text="Format: AltGr+, (the trigger characters , . - are supported). Each trigger needs its own key." />
+                               Text="Click a field and press the chord (e.g. AltGr+,) to set it, or type it by hand. The trigger characters , . - are supported; each trigger needs its own key." />
                 </StackPanel>
             </Border>
 
@@ -246,7 +249,8 @@
                 </StackPanel>
             </Border>
 
-            <!-- Inline validation errors (hidden until a save attempt fails) -->
+            <!-- Inline validation errors (hidden until a save attempt fails).
+                 Focusable so a rejected save can scroll/focus it into view (issue 20). -->
             <Border x:Name="ErrorPanel"
                     Background="#FFFDECEC"
                     BorderBrush="#FFE0B4B4"
@@ -254,6 +258,7 @@
                     CornerRadius="8"
                     Padding="14"
                     Margin="0,0,0,14"
+                    Focusable="True"
                     Visibility="Collapsed">
                 <StackPanel>
                     <TextBlock Text="Please fix the following before saving:"
