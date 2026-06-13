@@ -191,6 +191,7 @@ internal partial class SettingsWindow : Window
         BulletsPromptBox.Text = config.BulletsPrompt;
         EmailPromptBox.Text = config.EmailPrompt;
         _promptBackup = config.PromptBackup;   // issue 37: carry the existing backup forward
+        RefreshBackupView();                   // issue 38: reflect the backup in the UI
 
         FlexOrderBox.Text = string.Join(", ", config.FlexSlotOrder);
         CustomPromptBox.Text = config.CustomPrompt;
@@ -516,6 +517,46 @@ internal partial class SettingsWindow : Window
         BulletsPromptBox.Text = reset.BulletsPrompt;
         EmailPromptBox.Text = reset.EmailPrompt;
         CustomPromptBox.Text = reset.CustomPrompt;
+        RefreshBackupView();   // issue 38: a reset just (re)created the backup
+    }
+
+    // Prompt-backup UI (issue 38): see / copy / restore the snapshot a reset created.
+    // The view text and clipboard wording come from Core's PromptBackupText so both
+    // match; Copy/Restore are disabled when there is no backup.
+    private void RefreshBackupView()
+    {
+        var hasBackup = _promptBackup is not null;
+
+        BackupStatusText.Text = hasBackup
+            ? "A backup of your previous prompts is available (from your last reset)."
+            : "No backup yet - use 'Reset prompts to defaults' to create one.";
+        BackupViewBox.Text = hasBackup ? PromptBackupText.Format(_promptBackup!) : "";
+        BackupViewBox.Visibility = hasBackup ? Visibility.Visible : Visibility.Collapsed;
+        CopyBackupButton.IsEnabled = hasBackup;
+        RestoreBackupButton.IsEnabled = hasBackup;
+    }
+
+    private void OnCopyBackup(object sender, RoutedEventArgs e)
+    {
+        if (_promptBackup is not null)
+            ClipboardCopy.WithFeedback(
+                (System.Windows.Controls.Button)sender, PromptBackupText.Format(_promptBackup));
+    }
+
+    // Restore the backed-up prompts into the live prompt fields (Core's ApplyTo). The
+    // backup slot is kept so the user can restore again; Save persists the restored
+    // prompts, so they take effect on the next dictation with no restart.
+    private void OnRestoreBackup(object sender, RoutedEventArgs e)
+    {
+        if (_promptBackup is null)
+            return;
+
+        var restored = _promptBackup.ApplyTo(BuildConfigFromFields());
+        FixPromptBox.Text = restored.FixPrompt;
+        EnglishPromptBox.Text = restored.EnglishPrompt;
+        BulletsPromptBox.Text = restored.BulletsPrompt;
+        EmailPromptBox.Text = restored.EmailPrompt;
+        CustomPromptBox.Text = restored.CustomPrompt;
     }
 
     private void OnCancel(object sender, RoutedEventArgs e)

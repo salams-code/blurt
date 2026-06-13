@@ -250,6 +250,38 @@
                     </StackPanel>
                 </Border>
 
+                <!-- Prompt backup (issue 38): see / copy / restore the snapshot a reset
+                     created. The status line says whether a backup is present; the
+                     read-only box shows its contents; Copy puts them on the clipboard;
+                     Restore loads them back into the prompt fields above (persisted on
+                     Save, so it takes effect on the next dictation). -->
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource GroupHeader}" Text="Prompt backup" />
+                        <TextBlock x:Name="BackupStatusText" Style="{StaticResource Hint}" />
+                        <TextBox x:Name="BackupViewBox"
+                                 Margin="0,8,0,0"
+                                 IsReadOnly="True"
+                                 AcceptsReturn="True"
+                                 TextWrapping="Wrap"
+                                 MinHeight="96"
+                                 MaxHeight="180"
+                                 VerticalContentAlignment="Top"
+                                 VerticalScrollBarVisibility="Auto" />
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <Button x:Name="CopyBackupButton"
+                                    Content="Copy backup"
+                                    Style="{StaticResource LinkButton}"
+                                    Click="OnCopyBackup" />
+                            <Button x:Name="RestoreBackupButton"
+                                    Content="Restore backup"
+                                    Style="{StaticResource LinkButton}"
+                                    Margin="14,0,0,0"
+                                    Click="OnRestoreBackup" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
                 <!-- Hotkeys -->
                 <Border Style="{StaticResource Card}">
                     <StackPanel>
