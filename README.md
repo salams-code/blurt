@@ -1,86 +1,239 @@
 # Blurt
 
-Push-to-talk voice dictation for Windows. Hold a hotkey, speak, release — Blurt
-transcribes what you said and types it at the cursor in any app. A native tray
-app (.NET 8 / C#), no window in your way.
+**Push-to-talk voice dictation for Windows.** Hold a key, speak, release — your
+words appear at the cursor in whatever app is focused. Optionally cleaned up,
+translated, or reshaped by an LLM along the way.
 
-## Download & run (portable)
+Blurt lives in the system tray, stays out of your way, and is built around one
+question that most dictation tools blur over: **what actually leaves your
+machine?**
 
-1. Download `Blurt-0.1.0-win-x64.zip` from the [latest release](https://github.com/salams-code/blurt/releases/latest).
-2. Extract the `Blurt` folder anywhere (e.g. `C:\Tools\Blurt`).
-3. Double-click **`Blurt.exe`**.
+> Status: early, usable, and now open source. Native Windows, .NET 8 / C#.
+> Primary dictation language is German (the multilingual Whisper model handles
+> others too).
 
-No installer, no admin rights, and **no .NET needed** — the runtime is bundled.
-Blurt lives in the system tray; right-click the tray icon for settings and recent
-dictations.
+---
+
+## What it does
+
+You hold a global hotkey, talk, and let go. Blurt records while the key is
+down, transcribes the audio to text, optionally refines that text, and pastes
+the result at the current cursor position. A small overlay near the mouse shows
+the live status — `listening… → transcribing… → fixing…/bulleting…` — and then
+disappears. No window to focus, no button to click — it works inside your editor,
+browser, chat, mail client, anywhere the cursor is.
+
+There are several **modes**, each on its own hotkey, because "dictation" isn't
+one thing — sometimes you want raw text, sometimes a cleaned-up sentence,
+sometimes bullets, sometimes English.
+
+## Modes & hotkeys
+
+Push-to-talk on three global hotkeys (all remappable in Settings):
+
+| Hotkey      | Mode      | What you get                                                        |
+|-------------|-----------|---------------------------------------------------------------------|
+| `AltGr + ,` | **Fix**   | Grammar, punctuation and filler-word cleanup of what you said       |
+| `AltGr + .` | **English** | Your speech translated to English                                 |
+| `AltGr + -` | **Flex slot** | A cyclable slot — **tap** to switch its mode, **hold** to dictate |
+
+The **flex slot** cycles through three modes when you tap it (an overlay pill
+shows you the current one):
+
+- **Pur** — verbatim transcription, **no LLM call, zero network**. The only
+  fully offline mode.
+- **Bullets** — your dictation reformatted into clean bullet points.
+- **Custom** — your own prompt, defined in Settings (e.g. "rewrite as a polite
+  email", "summarize in one sentence").
+
+**Tap vs. hold:** a quick tap (under ~250 ms, configurable) on the flex key
+cycles its mode; holding it longer records a dictation. The trigger keystroke is
+swallowed, so the AltGr special character (`@ € { [` …) never leaks into your
+text.
+
+## Privacy — own your voice
+
+This is the part Blurt cares about most. The real trust boundary is not
+"local vs. cloud" — it's **audio vs. text**. Your *voice* is far more personal
+than the *words* it produces. Blurt makes that boundary explicit instead of
+hiding it behind technical dropdowns:
+
+| Tier              | Your audio        | Your text         | Voice leaves the machine? |
+|-------------------|-------------------|-------------------|---------------------------|
+| **Fully local**   | stays local       | stays local (Ollama) | **No** — nothing leaves   |
+| **Voice stays home** | stays **local** | → OpenAI          | **No** — only text leaves  |
+| **Full cloud**    | → OpenAI          | → OpenAI          | Yes — fastest/best results |
+
+- **Pur is hard-wired to fully local, always.** No matter what else you pick,
+  verbatim dictation makes zero network calls. That's a design guarantee, not a
+  setting.
+- The "voice stays home" tier is the sweet spot for most people: local Whisper
+  keeps the recording on your PC, and only the *transcribed text* is sent off
+  for refinement.
+- In refined modes, **only text is ever sent** to the configured endpoint — the
+  audio never crosses the network.
+
+Settings presents this as a single **guided tier choice** — pick the level of
+privacy you want and Blurt sets the underlying transcription and refinement
+options for you. Each tier spells out, in plain language, whether your voice
+leaves the machine. The individual *Transcription Source* and *Refinement
+Provider* controls are still there under an **Advanced** disclosure for
+non-standard combinations (which then show up as "Custom"). Picking a tier that
+sends audio or text to OpenAI makes the API-key requirement explicit right
+there in context.
+
+## Install
+
+Blurt ships as a **portable, self-contained folder** — no installer, no admin
+rights, no Program Files, no .NET install required.
+
+1. Download `Blurt-0.1.0-win-x64.zip` from the
+   [latest release](https://github.com/salams-code/blurt/releases/latest) and
+   unzip the `Blurt` folder anywhere (e.g. `C:\Tools\Blurt`).
+2. Double-click `Blurt.exe`.
+3. On first launch Windows SmartScreen may show a "run anyway" prompt — the app
+   is unsigned for now.
+
+It starts in the system tray. That's it.
 
 > Keep the files together: `Blurt.exe` needs the `runtimes\` folder and the few
 > `*.dll` next to it. Move the whole folder, not just the exe.
 
-## How it works
+### First-run onboarding
 
-Hold a hotkey to record, release to transcribe and inject:
+A short guided setup walks you through:
 
-| Hotkey | Mode |
-| --- | --- |
-| `AltGr` + `,` | **Fix** — clean up the dictation |
-| `AltGr` + `.` | **English** — produce English text |
-| `AltGr` + `-` | **Flex slot** — cycles Pur → Bullets → Custom |
+1. **Microphone** — pick your input and check the level.
+2. **OpenAI API key** *(optional)* — step-by-step guide to create one at
+   `platform.openai.com`, needed only for cloud transcription/refinement. Stored
+   encrypted (see below).
+3. **Whisper model** — downloads the local speech model on first run (keeps the
+   download small). If your network blocks the download (corporate proxy),
+   Settings shows the exact file, a copyable link, and the target folder for a
+   manual install.
+4. **Hotkeys** — review and remap the three bindings.
 
-- **Pur** is verbatim, fully offline, zero network — it always stays local.
-- **Bullets** formats speech as bullet points; **Custom** runs your own prompt
-  (e.g. translate, rephrase).
+After that, Blurt runs silently in the tray.
 
-All hotkeys, the flex-slot order, the microphone, and the overlay are configurable
-in **Settings** (tray → Settings).
+## Configuration
 
-## Privacy tiers
+Everything is in the **Settings** window (right-click the tray icon → Settings):
 
-Settings frames the cloud choice by **what leaves your machine**:
+- **Privacy tier** — the primary control (see [Privacy](#privacy--own-your-voice)
+  above): pick how much leaves your machine, and it sets transcription and
+  refinement accordingly. The two knobs below stay available under *Advanced*.
+- **Transcription** — local (whisper.cpp on your CPU) or online (OpenAI Whisper
+  API), plus the local model: `small` (q5_1, the default — lighter and faster) or
+  `large-v3-turbo` (q5_0, larger but more accurate).
+- **Refinement** — the OpenAI-compatible endpoint: base URL, model, and API key.
+  The default is OpenAI `gpt-4o-mini` (cheap, fast). Point the base URL at a
+  remote Ollama box (`http://<host>:11434/v1`) to run refinement on your own
+  hardware instead — **no code change needed**, the same client speaks both.
+- **Hotkeys** — remap the three bindings and the flex-slot mode order.
+- **Custom prompt** — the prompt used by the flex slot's Custom mode.
+- **Start with Windows** — optionally launch Blurt automatically at login (a
+  per-user entry, no admin; re-toggle it if you move the Blurt folder).
+- **Overlay & sound** — overlay anchor, and an optional start/stop sound (off by
+  default, meeting-friendly).
 
-| Tier | Voice (audio) | Text | 
-| --- | --- | --- |
-| **Fully local (offline)** | stays local | stays local (Ollama) |
-| **Voice stays home** | stays local | → OpenAI (refinement only) |
-| **Full cloud** | → OpenAI | → OpenAI |
+### Where your data lives
 
-Pur stays fully local regardless of tier. The cloud tiers need an OpenAI API key
-(Settings → Refinement → API key), stored encrypted via Windows DPAPI — never in
-plaintext.
+- `%APPDATA%\Blurt\config.json` — non-secret settings.
+- **API key** — stored separately and **DPAPI-encrypted** (current-user scope).
+  Never written in plaintext; only your Windows user can read it.
+- `%APPDATA%\Blurt\models\` — downloaded Whisper model(s).
+- `%APPDATA%\Blurt\logs\blurt.log` — a small, self-rotating diagnostic log (handy
+  if something misbehaves; capped in size so it never grows unbounded).
 
-## Transcription model
+## How it works (under the hood)
 
-Local transcription uses whisper.cpp via Whisper.net. On first use Blurt downloads
-the selected ggml model. If your network blocks the download (corporate proxy),
-Settings shows the exact file, a copyable link, and the target folder for a manual
-install.
+```
+Hold hotkey ─▶ record mic (NAudio)
+   release  ─▶ transcribe (local whisper.cpp / OpenAI Whisper) ─▶ raw text
+                    │
+            mode == Pur? ──yes──▶ paste at cursor   (zero network)
+                    │no
+              refine(raw text, mode prompt) ─▶ final text ─▶ paste at cursor
+```
 
-## Start with Windows
+A few deliberate technical choices:
 
-Settings → Startup → *Start Blurt when Windows starts* adds a per-user entry (no
-admin). If you move the Blurt folder, re-toggle it so it points at the new path.
+- **Low-level keyboard hook** (`WH_KEYBOARD_LL`), not `RegisterHotKey` — that's
+  the only way to get push-to-talk (key-up) and tap-vs-hold, and to swallow the
+  trigger key so AltGr characters don't leak.
+- **Text injection** saves your clipboard, sets the text, simulates `Ctrl+V`,
+  then restores the clipboard — so pasting doesn't clobber what you'd copied.
+- **Fail-soft everywhere.** No mic, transcription error, endpoint unreachable,
+  paste blocked by the target app — each degrades to a notice instead of
+  crashing. Where it makes sense it recovers: a cloud transcription that can't
+  reach the network falls back to a local model so the dictation still lands, an
+  unreachable refiner falls back to the raw transcript, and a blocked paste
+  leaves the result on the clipboard.
+
+### Tech stack
+
+.NET 8 / C# · WPF (settings + overlay) · WinForms `NotifyIcon` (tray) ·
+[Whisper.net](https://github.com/sandrohanea/whisper.net) (local transcription) ·
+[NAudio](https://github.com/naudio/NAudio) (audio) · `System.Net.Http` for the
+OpenAI-compatible refinement endpoint.
+
+The codebase is split so the logic is testable headless: a `Blurt.Core` library
+(mode prompts, flex-slot cycling, config + DPAPI round-trip, the
+OpenAI-compatible client, tap/hold thresholds) with unit tests, and a thin
+`Blurt.App` shell for the OS-bound parts (hooks, mic, injection, overlay) that
+can only be exercised by hand on Windows.
 
 ## Build from source
 
-The shipped binary is self-contained so it runs without .NET installed. Building
-needs the .NET 8 SDK in your user profile (no machine-wide install):
+You need the **.NET 8 SDK**. Run the tests:
 
 ```powershell
-$env:DOTNET_ROOT = "$env:USERPROFILE\.dotnet"
+dotnet test tests/Blurt.Core.Tests
+```
 
-# test
-& "$env:USERPROFILE\.dotnet\dotnet.exe" test tests/Blurt.Core.Tests --nologo
+Produce the portable, self-contained build:
 
-# portable release: single Blurt.exe (managed + runtime bundled) plus the native
-# whisper/WPF libraries on disk (kept out of the bundle so Whisper.net loads them).
-& "$env:USERPROFILE\.dotnet\dotnet.exe" publish src/Blurt.App/Blurt.App.csproj `
+```powershell
+dotnet publish src/Blurt.App/Blurt.App.csproj `
     -c Release -r win-x64 --self-contained true `
     -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=false `
     -p:EnableCompressionInSingleFile=true -p:DebugType=none `
     -o publish/Blurt-Portable
 ```
 
-Verify the native whisper libraries load in a build: `Blurt.exe --selftest` writes
-PASS/FAIL to `%TEMP%\blurt-selftest.txt`.
+This bundles the .NET runtime and the managed assemblies into a single
+`publish/Blurt-Portable/Blurt.exe` that runs on any Windows x64 machine with no
+.NET installed, leaving the native libraries in a `runtimes\` folder next to it.
 
-See [CLAUDE.md](CLAUDE.md) for the full developer setup.
+> **Keep `IncludeNativeLibrariesForSelfExtract=false`.** The native whisper
+> DLLs must stay on disk beside the exe — Whisper.net probes that folder to load
+> them. A *true* single-file build (extracting natives to a temp dir) breaks
+> local transcription. `Blurt.exe --selftest` is a quick smoke test that the
+> native whisper runtime loads (writes PASS/FAIL/SKIP to
+> `%TEMP%\blurt-selftest.txt`).
+
+See [CLAUDE.md](CLAUDE.md) for the full developer setup, including the no-admin
+user-profile SDK install (useful on a locked-down/corporate machine).
+
+## Roadmap
+
+Deliberately **not** in scope for now: streaming/chunked transcription with live
+incremental insertion (revisited after real-world use of cloud refinement),
+emoji/tone modes, user accounts, a backend server, code signing, an installer.
+
+## Background & credits
+
+Blurt is a ground-up Windows reimplementation inspired by **Blitztext**, the
+macOS dictation app by Magnus
+([cmagnussen/blitztext-app](https://github.com/cmagnussen/blitztext-app),
+Swift/SwiftUI + WhisperKit). Blitztext is Apple-only, so none of its code runs
+on Windows — only the *concept* carried over, and this is a new, native-Windows
+codebase with its own architecture. Credit to Magnus for the original idea.
+
+**On a Mac?** Use [Blitztext](https://github.com/cmagnussen/blitztext-app) — it's
+the original and the natural fit there. Blurt exists to bring the same workflow
+to Windows.
+
+## License
+
+[MIT](LICENSE) © 2026 SLM Solutions.
