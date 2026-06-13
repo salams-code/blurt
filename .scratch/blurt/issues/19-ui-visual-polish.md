@@ -1,6 +1,6 @@
 # 19 — Visual polish across overlay, settings, and onboarding
 
-Status: ready-for-human
+Status: done (HITL-approved 2026-06-13)
 Type: HITL
 
 ## Parent
@@ -22,7 +22,7 @@ controls are styled once rather than restyled.
 
 - [x] The overlay pill, settings window, and onboarding wizard share a consistent, modern visual style.
 - [x] No behavioural regressions — all existing flows still work and the test suite stays green.
-- [ ] The look is reviewed and approved by the user (HITL).
+- [x] The look is reviewed and approved by the user (HITL).
 
 ## Blocked by
 

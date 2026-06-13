@@ -26,7 +26,9 @@ This slice owns the **design decision** as well as the implementation:
 - The keyboard hook must still **swallow** the trigger chord so the character never
   reaches the focused app, for the whole expanded set.
 
-This is the prerequisite enabler for the extra-modifier translate layer (issue 39).
+(Originally the enabler for issue 39's translate layer; **39 was decoupled on
+2026-06-13** to use Shift directly as its extra modifier, so 34 no longer blocks
+anything — it is a standalone enhancement now.)
 
 ## Acceptance criteria
 

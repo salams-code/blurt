@@ -21,7 +21,10 @@ so only text crosses the network, never extra audio. The live-status overlay sho
 reflect the layered operation (e.g. "bulleting → english" or an "+EN" marker).
 
 Pur is exempt and must stay zero-network: the modifier has no effect on the verbatim
-local path. The extra modifier reuses the expanded hotkey vocabulary from issue 34.
+local path. The extra modifier is **Shift**, held together with the existing trigger
+chord (e.g. `AltGr+Shift+,`). The hook gains simple Shift-state tracking and tags the
+dictation as also-translate — no change to the `AltGr+{,.-}` bindings, so this is
+**decoupled from issue 34** (2026-06-13 decision).
 
 ## Acceptance criteria
 
@@ -30,9 +33,14 @@ local path. The extra modifier reuses the expanded hotkey vocabulary from issue 
 - [ ] Without the modifier, behaviour is unchanged.
 - [ ] It is per-dictation (no persisted setting); composes with any refined mode.
 - [ ] Pur stays zero-network and unaffected by the modifier.
+- [ ] The keyboard hook observes Shift held with a trigger chord and tags that
+      dictation as also-translate; the trigger chord is still swallowed.
 - [ ] The status overlay shows the layered operation.
 - [ ] The compose/translate decision lives in `Blurt.Core`, unit-tested; suite green.
 
 ## Blocked by
 
-- Issue 34 (expanded hotkey vocabulary) — the extra modifier needs hook support.
+- Issue 36 (Email Flex mode) — 39's acceptance verifies translate-on-Email, so the
+  Email mode must exist first. The Shift mechanism itself is independent; this is
+  **decoupled from issue 34** (2026-06-13): the hook adds simple Shift-state tracking,
+  no expanded-vocabulary rework needed.

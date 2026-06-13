@@ -1,6 +1,6 @@
 # 12 — Online transcription option (OpenAI Whisper API)
 
-Status: ready-for-human (implemented 2026-06-12, TDD; real-key smoke test = HITL)
+Status: done (HITL-verified 2026-06-13)
 Type: AFK
 
 ## Parent

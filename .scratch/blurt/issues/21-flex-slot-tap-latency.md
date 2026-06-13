@@ -1,6 +1,6 @@
 # 21 — Flex-slot tap must not block the UI thread
 
-Status: ready-for-human (fixed 2026-06-12; awaiting HITL feel check)
+Status: done (HITL-verified 2026-06-13)
 Type: AFK (UI-thread/latency fix) / HITL feel check
 
 ## Parent
@@ -31,7 +31,7 @@ coverage if a new decision is introduced (e.g. a minimum-viable-take guard).
 
 - [x] A quick tap cycles the mode immediately (no multi-second wait, no stuck "listening" pill).
 - [x] The UI thread is never blocked on the tap (discard) path.
-- [ ] A hold still records and transcribes correctly; rapid tap→hold→tap sequences stay reliable. *(HITL feel check)*
+- [x] A hold still records and transcribes correctly; rapid tap→hold→tap sequences stay reliable. *(HITL feel check)*
 - [x] Any new timing/guard decision is unit-tested in `Blurt.Core`; the suite stays green. *(no new Core decision — the 250 ms classifier is unchanged)*
 
 ## Comments

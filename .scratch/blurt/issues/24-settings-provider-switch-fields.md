@@ -1,6 +1,6 @@
 # 24 — Settings provider switch should present per-provider endpoint fields (parity with onboarding)
 
-Status: ready-for-human (implemented 2026-06-12, per-provider memory; awaiting HITL UX check)
+Status: done (HITL-verified 2026-06-13)
 Type: AFK Core (per-provider endpoint config) + App UI / HITL UX check
 
 ## Parent

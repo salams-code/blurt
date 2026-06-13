@@ -1,6 +1,6 @@
 # 25 — Manual-install guidance must be copyable (download link + target folder)
 
-Status: ready-for-human (implemented 2026-06-12, agent-verified via UIA; awaiting HITL UX check)
+Status: done (HITL-verified 2026-06-13)
 Type: AFK App UI (thin shell over existing Core strings) / HITL UX check
 
 ## Parent

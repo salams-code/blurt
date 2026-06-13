@@ -1,6 +1,6 @@
 # 26 — Recent-dictations history in the tray menu (recover a lost paste)
 
-Status: ready-for-human (implemented 2026-06-12, TDD; awaiting HITL UX check)
+Status: done (HITL-verified 2026-06-13)
 Type: AFK Core (ring buffer, unit-tested) + App UI (tray submenu) / HITL UX check
 
 ## Parent
