@@ -1,6 +1,6 @@
 # 34 — Expanded hotkey vocabulary (more than AltGr+{ , . - })
 
-Status: ready-for-human
+Status: wontfix (2026-06-14 — user decision: not needed)
 Type: HITL design + implementation
 
 ## Parent
@@ -42,3 +42,11 @@ anything — it is a standalone enhancement now.)
 ## Blocked by
 
 - None — can start immediately.
+
+## Comments
+
+**2026-06-14 (user decision) — wontfix.** Originally the enabler for issue 39's
+translate layer, but 39 was decoupled (2026-06-13) to use Shift directly, so 34 no
+longer blocks anything. The existing `AltGr+{,.-}` vocabulary is sufficient for the
+shipped triggers; an expanded binding set is not wanted at this time. Can be reopened
+later if a user actually needs custom chords.

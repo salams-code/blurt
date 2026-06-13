@@ -1,6 +1,6 @@
 # 31 — Flex-slot tap feedback is throttled (mode cycle feels stuck)
 
-Status: done (fixed via TDD, 2026-06-13) — HITL confirm pending
+Status: done (fixed via TDD, 2026-06-13; HITL-confirmed 2026-06-14)
 
 ## Parent
 
@@ -43,4 +43,4 @@ displayed mode could also lag the real one.
 - [x] Each mode is visually distinct (label + colour).
 - [x] A tap-then-hold (start recording) is not hidden by the flash timer.
 - [x] Suite stays green (210).
-- [ ] HITL: confirm live on the portable that fast cycling reads correctly.
+- [x] HITL: confirm live on the portable that fast cycling reads correctly. *(passed 2026-06-14)*

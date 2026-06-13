@@ -1,6 +1,6 @@
 # 38 — See, copy, and restore the prompt backup from the UI
 
-Status: done
+Status: done (HITL soft-pass 2026-06-14 — user accepted; full Copy/Restore round-trip not eyeballed)
 Type: AFK feature
 
 ## Parent

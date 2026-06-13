@@ -1,6 +1,6 @@
 # 33 — Overlay shows precise live status (per-phase, per-mode, animated)
 
-Status: done (built via TDD, 2026-06-13) — HITL confirm pending
+Status: done (built via TDD, 2026-06-13; HITL-confirmed 2026-06-14)
 
 ## Parent
 
@@ -49,4 +49,4 @@ visible: Pur always shows "transcribing locally".
 - [x] Local vs cloud transcription is distinguished in the label.
 - [x] The pill is animated while active (pulse + ellipsis) and steady for a flash.
 - [x] Suite stays green (213).
-- [ ] HITL: confirm the labels/animation read well live across all modes.
+- [x] HITL: confirm the labels/animation read well live across all modes. *(passed 2026-06-14)*

@@ -1,6 +1,6 @@
 # 37 — Reset prompts to defaults, with a backup
 
-Status: done
+Status: done (HITL UX check passed 2026-06-14)
 Type: AFK feature
 
 ## Parent

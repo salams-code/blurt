@@ -1,6 +1,6 @@
 # 35 — Editable prompts for every refined mode
 
-Status: done
+Status: done (HITL UX check passed 2026-06-14)
 Type: AFK feature
 
 ## Parent

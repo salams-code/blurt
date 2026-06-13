@@ -1,6 +1,6 @@
 # 39 — "Also translate to English" via an extra modifier
 
-Status: done
+Status: done (HITL UX check passed 2026-06-14)
 Type: AFK feature
 
 ## Parent

@@ -1,6 +1,6 @@
 # 30 — Online transcription has no offline → local fallback (Full Cloud breaks with no internet)
 
-Status: done (triaged + fixed via TDD, 2026-06-13) — HITL offline repro still pending
+Status: done (triaged + fixed via TDD, 2026-06-13; HITL offline repro confirmed 2026-06-14)
 
 ## Parent
 

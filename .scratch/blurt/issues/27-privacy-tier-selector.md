@@ -1,6 +1,6 @@
 # 27 — Guided privacy-tier selector for transcription + refinement ("own your voice")
 
-Status: ready-for-human (implemented 2026-06-13, TDD Core + UIA-verified shell; awaiting HITL UX sign-off)
+Status: done (implemented 2026-06-13, TDD Core + UIA-verified shell; HITL UX sign-off 2026-06-14)
 Type: App UI (guided selector) + small Core (tier ⇄ {TranscriptionMode, RefinementProvider} mapping, unit-tested) + HITL UX check
 
 ## Parent
@@ -67,7 +67,7 @@ Stufe 2 — Full cloud                 Audio: → OpenAI Text: → OpenAI       
 - [x] Pur remains zero-network / local regardless of the selected tier (contract untouched — no engine change).
 - [x] Tiers requiring OpenAI make the API-key requirement explicit in the per-tier hint.
 - [x] tier ⇄ {mode, provider} mapping is unit-tested in `Blurt.Core`; suite green (191); app builds clean.
-- [ ] HITL UX sign-off against the running Settings window (screenshots captured; awaiting the user's call on wording/order).
+- [x] HITL UX sign-off against the running Settings window (screenshots captured). *(signed off 2026-06-14 — wording/placement accepted)*
 
 ## Related
 
