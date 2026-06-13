@@ -259,8 +259,29 @@
                     <StackPanel>
                         <TextBlock Style="{StaticResource GroupHeader}" Text="Prompt backup" />
                         <TextBlock x:Name="BackupStatusText" Style="{StaticResource Hint}" />
+                        <!-- Actions on top (Restore first), so the buttons are reachable
+                             without scrolling past the prompt text. -->
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <Button x:Name="RestoreBackupButton"
+                                    Content="Restore backup"
+                                    Style="{StaticResource LinkButton}"
+                                    Click="OnRestoreBackup" />
+                            <Button x:Name="CopyBackupButton"
+                                    Content="Copy backup"
+                                    Style="{StaticResource LinkButton}"
+                                    Margin="14,0,0,0"
+                                    Click="OnCopyBackup" />
+                            <Button x:Name="ToggleBackupButton"
+                                    Content="Show backed-up prompts"
+                                    Style="{StaticResource LinkButton}"
+                                    Margin="14,0,0,0"
+                                    Click="OnToggleBackupView" />
+                        </StackPanel>
+                        <!-- Collapsed by default — the backed-up text only shows on demand
+                             (toggled by the link above) so it stays out of the way. -->
                         <TextBox x:Name="BackupViewBox"
                                  Margin="0,8,0,0"
+                                 Visibility="Collapsed"
                                  IsReadOnly="True"
                                  AcceptsReturn="True"
                                  TextWrapping="Wrap"
@@ -268,17 +289,6 @@
                                  MaxHeight="180"
                                  VerticalContentAlignment="Top"
                                  VerticalScrollBarVisibility="Auto" />
-                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                            <Button x:Name="CopyBackupButton"
-                                    Content="Copy backup"
-                                    Style="{StaticResource LinkButton}"
-                                    Click="OnCopyBackup" />
-                            <Button x:Name="RestoreBackupButton"
-                                    Content="Restore backup"
-                                    Style="{StaticResource LinkButton}"
-                                    Margin="14,0,0,0"
-                                    Click="OnRestoreBackup" />
-                        </StackPanel>
                     </StackPanel>
                 </Border>
 

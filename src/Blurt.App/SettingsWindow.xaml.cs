@@ -531,9 +531,20 @@ internal partial class SettingsWindow : Window
             ? "A backup of your previous prompts is available (from your last reset)."
             : "No backup yet - use 'Reset prompts to defaults' to create one.";
         BackupViewBox.Text = hasBackup ? PromptBackupText.Format(_promptBackup!) : "";
-        BackupViewBox.Visibility = hasBackup ? Visibility.Visible : Visibility.Collapsed;
-        CopyBackupButton.IsEnabled = hasBackup;
+        // Keep the text collapsed by default (and re-collapse after a reset) so it
+        // doesn't sit open in the way; the user expands it on demand.
+        BackupViewBox.Visibility = Visibility.Collapsed;
+        ToggleBackupButton.Content = "Show backed-up prompts";
         RestoreBackupButton.IsEnabled = hasBackup;
+        CopyBackupButton.IsEnabled = hasBackup;
+        ToggleBackupButton.IsEnabled = hasBackup;
+    }
+
+    private void OnToggleBackupView(object sender, RoutedEventArgs e)
+    {
+        var show = BackupViewBox.Visibility != Visibility.Visible;
+        BackupViewBox.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        ToggleBackupButton.Content = show ? "Hide backed-up prompts" : "Show backed-up prompts";
     }
 
     private void OnCopyBackup(object sender, RoutedEventArgs e)
