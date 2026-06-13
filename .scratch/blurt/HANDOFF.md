@@ -156,28 +156,18 @@ The user may still add a further issue next session.
   API key stored (DPAPI, `apikey.dat`). Autostart Run key currently **not** set
   (test cleaned up).
 
-## ⚠️ Two READMEs — reconcile before publishing (analysed at session end)
-There are **two READMEs**:
-- **`C:/Users/hagis/dev/blurt-readme`** (worktree, branch `docs/readme`) — an
-  **uncommitted** polished public README (9.5 KB) **+ an uncommitted MIT `LICENSE`
-  (© 2026 SLM Solutions)**. This is the canonical public README (credits/Blitztext,
-  architecture diagram, tech stack, roadmap). **Keep this as the base.**
-- **`main`** `README.md` (my commit `edecab1`) — leaner/functional. **Drop or merge**,
-  don't ship two. (Also: `main` has no LICENSE; the worktree does.)
-
-The worktree README predates today's findings and has **stale/wrong** bits to fix
-before publishing:
-1. **Build command** — it shows the old folder publish (`-o publish/Blurt`) and bare
-   `dotnet`. Replace with the single-file portable recipe (see "Portable build"
-   above) + the `$env:USERPROFILE\.dotnet` SDK note. True single-file breaks whisper.
-2. **Model sizes** — it says `small ≈ 460 MB` and a `base ≈ 140 MB` fallback. `base`
-   was removed (issue 18); options are **small** (default, ~182 MB q5_1) and
-   **large-v3-turbo**. Fix the numbers/names.
-3. **Autostart (issue 29)** — missing; add a "Start with Windows" note.
-4. **`--selftest`** — optional, worth a mention.
-5. **"Fail-soft … falls back to raw text"** — tighten: per **issue 30**, Online
-   transcription has NO local fallback, so Full Cloud offline = lost dictation. Don't
-   imply graceful offline transcription.
+## ✅ READMEs reconciled (2026-06-13) — one README on `main`, worktree removed
+**Done.** The polished README + MIT `LICENSE` were merged onto **`main`** (commit
+`19c786e`) and the `docs/readme` worktree was **removed** (`git worktree remove`;
+branch `docs/readme` still exists at 259c943 but is an ancestor of main — delete it
+anytime). Everything is now in one place. The merge took the worktree's richer
+content (what-it-does, modes, audio-vs-text privacy, how-it-works diagram, tech
+stack, roadmap, credits) + main's accurate technical bits, and fixed the worktree's
+stale parts: correct single-file portable recipe (true single-file breaks whisper),
+`--selftest`, model options small(q5_1)/large-v3-turbo(q5_0) (dropped the removed
+`base`), Start-with-Windows, the self-rotating log, and the issue-30 offline→local
+transcription fallback in the fail-soft notes. README is **text-only by choice**;
+**screenshots are issue 41** (later, after issue 40's onboarding UI settles).
 
 Path-scrub policy (memory: open-source-prep): the remote was scrubbed of machine
 paths/usernames; never push the backup-pre-scrub. My committed files use
