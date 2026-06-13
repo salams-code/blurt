@@ -12,6 +12,8 @@
     <!-- Portable: the produced binary is Blurt.exe, runnable from any user folder. -->
     <AssemblyName>Blurt</AssemblyName>
     <RootNamespace>Blurt.App</RootNamespace>
+    <!-- Product version (first public release). Stamps Assembly/File/Informational version. -->
+    <Version>0.1.0</Version>
   </PropertyGroup>
 
   <!-- Enabling UseWPF alongside UseWindowsForms narrows the implicit-usings set
