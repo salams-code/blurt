@@ -1,6 +1,6 @@
 # 35 — Editable prompts for every refined mode
 
-Status: ready-for-agent
+Status: done
 Type: AFK feature
 
 ## Parent
@@ -22,14 +22,44 @@ unaffected — it has no prompt (verbatim, zero-network) and must stay that way.
 
 ## Acceptance criteria
 
-- [ ] Settings shows one editable prompt field per refined mode (Fix, English,
+- [x] Settings shows one editable prompt field per refined mode (Fix, English,
       Bullets, Custom), each pre-filled with its default.
-- [ ] Editing a prompt and saving changes that mode's refinement on the next
+- [x] Editing a prompt and saving changes that mode's refinement on the next
       dictation, no restart.
-- [ ] An unedited install behaves exactly as today (defaults unchanged).
-- [ ] Pur remains promptless / zero-network.
-- [ ] The defaults + per-mode config live in `Blurt.Core`, unit-tested; suite green.
+- [x] An unedited install behaves exactly as today (defaults unchanged).
+- [x] Pur remains promptless / zero-network.
+- [x] The defaults + per-mode config live in `Blurt.Core`, unit-tested; suite green.
 
 ## Blocked by
 
 - None — can start immediately.
+
+## Comments
+
+Built (2026-06-13, ralph/backlog loop):
+
+- **Core (the editable source).** Added a `RefinedMode` enum (Fix/English/Bullets/Custom
+  — Pur deliberately excluded, it stays verbatim/promptless) and a pure `ModePrompts`
+  resolver: `DefaultFor(mode)` returns the shipped wording (the existing
+  `RefinementPrompts` constants for the always-on modes, empty for Custom) and
+  `For(mode, config)` returns the user's override or the default. Always-on modes
+  fall back to the default when blanked (can't be silently disabled); Custom keeps its
+  blank-means-no-refiner contract.
+- **Config.** `BlurtConfig` gained `FixPrompt`/`EnglishPrompt`/`BulletsPrompt`, each
+  defaulting to its `RefinementPrompts` constant, wired into `Equals`/`GetHashCode`.
+  A config written before this setting has no keys for them, so it deserialises to the
+  constant defaults → behaviour unchanged. (`CustomPrompt` was already configurable.)
+- **Single source of truth.** `FlexSlotPrompts.For` now resolves Bullets/Custom through
+  `ModePrompts`; `TrayApplicationContext` resolves the Fix/English prompts fresh per
+  dictation via `_settings.Load()`, so a Settings edit applies on the next dictation
+  with no restart.
+- **Settings UI.** New "Mode prompts (LLM)" card with editable Fix/English/Bullets
+  fields, pre-filled and persisted; Custom's field stays in the Flex-slot card.
+- **Tests.** New `ModePromptsTests` (defaults, override, blank-handling, per-mode
+  independence) + `SettingsStore` round-trip and a legacy-config backward-compat test.
+  Full Core suite green (228 tests). Pur path untouched (`FlexSlotPromptsTests` still pass).
+
+HITL UX check recommended: open Settings → "Mode prompts (LLM)", confirm Fix/English/Bullets
+fields are pre-filled with the defaults; edit one (e.g. Fix), Save, dictate in that mode and
+confirm the new prompt takes effect without restarting; clear a field, Save, and confirm the
+mode reverts to its default behaviour.

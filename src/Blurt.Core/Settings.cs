@@ -40,6 +40,27 @@ public enum FlexSlotMode
     Custom,
 }
 
+/// <summary>
+/// A refined dictation mode whose system prompt the user can edit (issue 35):
+/// Fix, English, Bullets and Custom. Pur is deliberately absent — it is verbatim,
+/// promptless and zero-network, and must stay that way. <see cref="ModePrompts"/>
+/// pairs each mode with its editable prompt (default or override).
+/// </summary>
+public enum RefinedMode
+{
+    /// <summary>Clean up the German transcript without changing its meaning.</summary>
+    Fix,
+
+    /// <summary>Translate the transcript into fluent English.</summary>
+    English,
+
+    /// <summary>Reformat the transcript into bullet points.</summary>
+    Bullets,
+
+    /// <summary>Apply the user-defined prompt (no built-in default wording).</summary>
+    Custom,
+}
+
 /// <summary>Where the status overlay positions itself (design contract §9).</summary>
 public enum OverlayAnchor
 {
@@ -109,7 +130,27 @@ public sealed record BlurtConfig
     public IReadOnlyList<FlexSlotMode> FlexSlotOrder { get; init; } =
         [FlexSlotMode.Pur, FlexSlotMode.Bullets, FlexSlotMode.Custom];
 
-    /// <summary>User-defined prompt applied by the <see cref="FlexSlotMode.Custom"/> slot.</summary>
+    /// <summary>
+    /// The Fix mode's editable system prompt (issue 35). Defaults to the shipped
+    /// <see cref="RefinementPrompts.Fix"/> so an untouched install behaves exactly
+    /// as before; a config written before this setting existed has no key for it and
+    /// deserialises to this default. Resolved per dictation via <see cref="ModePrompts"/>
+    /// so an edit takes effect without a restart; a blanked field falls back to the
+    /// default (an always-on mode can't be silently disabled).
+    /// </summary>
+    public string FixPrompt { get; init; } = RefinementPrompts.Fix;
+
+    /// <summary>The English mode's editable system prompt (issue 35). See <see cref="FixPrompt"/>.</summary>
+    public string EnglishPrompt { get; init; } = RefinementPrompts.English;
+
+    /// <summary>The Bullets mode's editable system prompt (issue 35). See <see cref="FixPrompt"/>.</summary>
+    public string BulletsPrompt { get; init; } = RefinementPrompts.Bullets;
+
+    /// <summary>
+    /// User-defined prompt applied by the <see cref="FlexSlotMode.Custom"/> slot.
+    /// Unlike the always-on prompts above it ships empty: a blank Custom prompt
+    /// means "no refiner" (verbatim), so it is never replaced by a default.
+    /// </summary>
     public string CustomPrompt { get; init; } = "";
 
     /// <summary>Where the status overlay anchors itself.</summary>
@@ -162,6 +203,9 @@ public sealed record BlurtConfig
             && RefinementProvider == other.RefinementProvider
             && RefinementBaseUrl == other.RefinementBaseUrl
             && RefinementModel == other.RefinementModel
+            && FixPrompt == other.FixPrompt
+            && EnglishPrompt == other.EnglishPrompt
+            && BulletsPrompt == other.BulletsPrompt
             && CustomPrompt == other.CustomPrompt
             && OverlayAnchor == other.OverlayAnchor
             && SoundEnabled == other.SoundEnabled
@@ -181,6 +225,9 @@ public sealed record BlurtConfig
         hash.Add(RefinementProvider);
         hash.Add(RefinementBaseUrl);
         hash.Add(RefinementModel);
+        hash.Add(FixPrompt);
+        hash.Add(EnglishPrompt);
+        hash.Add(BulletsPrompt);
         hash.Add(CustomPrompt);
         hash.Add(OverlayAnchor);
         hash.Add(SoundEnabled);

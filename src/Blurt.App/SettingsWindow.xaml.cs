@@ -179,6 +179,12 @@ internal partial class SettingsWindow : Window
         HotkeyEnglishBox.Text = ChordFor(config, TriggerKind.English);
         HotkeyFlexBox.Text = ChordFor(config, TriggerKind.FlexSlot);
 
+        // Editable per-mode prompts (issue 35), each pre-filled with the stored
+        // value — which is the shipped default on an untouched install.
+        FixPromptBox.Text = config.FixPrompt;
+        EnglishPromptBox.Text = config.EnglishPrompt;
+        BulletsPromptBox.Text = config.BulletsPrompt;
+
         FlexOrderBox.Text = string.Join(", ", config.FlexSlotOrder);
         CustomPromptBox.Text = config.CustomPrompt;
 
@@ -520,6 +526,12 @@ internal partial class SettingsWindow : Window
                 [TriggerKind.FlexSlot] = HotkeyFlexBox.Text.Trim(),
             },
             FlexSlotOrder = ParseFlexOrder(FlexOrderBox.Text, _original.FlexSlotOrder),
+            // Editable per-mode prompts (issue 35): persisted verbatim. A blank
+            // always-on prompt self-heals to its default at resolution time
+            // (ModePrompts.For); Custom keeps its blank-means-no-refiner contract.
+            FixPrompt = FixPromptBox.Text,
+            EnglishPrompt = EnglishPromptBox.Text,
+            BulletsPrompt = BulletsPromptBox.Text,
             CustomPrompt = CustomPromptBox.Text,
             OverlayAnchor = (OverlayAnchor)OverlayAnchorBox.SelectedItem,
             SoundEnabled = SoundEnabledBox.IsChecked == true,

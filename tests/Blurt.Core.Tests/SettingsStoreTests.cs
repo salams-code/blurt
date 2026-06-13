@@ -80,6 +80,10 @@ public class SettingsStoreTests
                     [TriggerKind.FlexSlot] = "Ctrl+F3",
                 },
                 FlexSlotOrder = [FlexSlotMode.Custom, FlexSlotMode.Pur, FlexSlotMode.Bullets],
+                // Per-mode editable prompts (issue 35) must round-trip too.
+                FixPrompt = "Just fix the punctuation.",
+                EnglishPrompt = "Translate to British English.",
+                BulletsPrompt = "Terse bullets, no sub-points.",
                 CustomPrompt = "Translate to formal German.",
                 OverlayAnchor = OverlayAnchor.BottomCenter,
                 SoundEnabled = true,
@@ -122,6 +126,44 @@ public class SettingsStoreTests
 
             Assert.Equal("base", config.WhisperModel.Size);
             Assert.True(config.OnboardingCompleted);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Loading_a_config_without_the_per_mode_prompt_keys_uses_the_shipped_defaults()
+    {
+        // Backward compatibility (issue 35, criterion 3): a config.json written
+        // before the editable per-mode prompts existed has no Fix/English/Bullets
+        // prompt keys. Loading it must leave each at its shipped default so the
+        // install behaves exactly as before — proven by resolving through ModePrompts.
+        var root = TempRoot();
+        try
+        {
+            var store = new SettingsStore(root, new FlipProtector());
+            Directory.CreateDirectory(Path.Combine(root, "Blurt"));
+            File.WriteAllText(store.ConfigPath, """
+                {
+                  "Transcription": "Local",
+                  "RefinementModel": "gpt-4o-mini",
+                  "CustomPrompt": "Speak like a pirate.",
+                  "OnboardingCompleted": true
+                }
+                """);
+
+            var config = store.Load();
+
+            Assert.Equal(RefinementPrompts.Fix, config.FixPrompt);
+            Assert.Equal(RefinementPrompts.English, config.EnglishPrompt);
+            Assert.Equal(RefinementPrompts.Bullets, config.BulletsPrompt);
+            // The one key that was present is still honoured.
+            Assert.Equal("Speak like a pirate.", config.CustomPrompt);
+            // And resolution falls back to the shipped wording for the absent keys.
+            Assert.Equal(RefinementPrompts.Fix, ModePrompts.For(RefinedMode.Fix, config));
+            Assert.Equal(RefinementPrompts.English, ModePrompts.For(RefinedMode.English, config));
         }
         finally
         {

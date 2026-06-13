@@ -247,7 +247,10 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         var audio = _recorder.Stop();
         PlaySound(start: false);   // optional stop beep at release
-        _ = RefineAndInjectAsync(audio, RefinementPrompts.English, StatusLabel.Translating);   // fire-and-forget; outcome surfaces as a balloon only when notable
+        // Read the editable English prompt fresh per dictation (issue 35) so a
+        // Settings edit takes effect without a restart; blank falls back to default.
+        var englishPrompt = ModePrompts.For(RefinedMode.English, _settings.Load());
+        _ = RefineAndInjectAsync(audio, englishPrompt, StatusLabel.Translating);   // fire-and-forget; outcome surfaces as a balloon only when notable
     }
 
     // Flex-slot push-to-talk (issue 07 + 11). Down starts recording and stamps the
@@ -409,7 +412,10 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         var audio = _recorder.Stop();
         PlaySound(start: false);   // optional stop beep at release
-        _ = RefineAndInjectAsync(audio, RefinementPrompts.Fix, StatusLabel.Fixing);   // fire-and-forget; outcome surfaces as a balloon only when notable
+        // Read the editable Fix prompt fresh per dictation (issue 35) so a Settings
+        // edit takes effect without a restart; blank falls back to default.
+        var fixPrompt = ModePrompts.For(RefinedMode.Fix, _settings.Load());
+        _ = RefineAndInjectAsync(audio, fixPrompt, StatusLabel.Fixing);   // fire-and-forget; outcome surfaces as a balloon only when notable
     }
 
     // Shared refined-dictation path: transcribe locally, then refine the text

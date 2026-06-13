@@ -22,10 +22,13 @@ public static class FlexSlotPrompts
     /// </summary>
     public static string? For(FlexSlotMode mode, BlurtConfig config)
     {
+        // Bullets and Custom resolve through ModePrompts (issue 35) so the editable
+        // per-mode prompt is the single source of truth — Bullets picks up an edit,
+        // Custom reads the user's prompt — while Pur stays promptless.
         var prompt = mode switch
         {
-            FlexSlotMode.Bullets => RefinementPrompts.Bullets,
-            FlexSlotMode.Custom => config.CustomPrompt,
+            FlexSlotMode.Bullets => ModePrompts.For(RefinedMode.Bullets, config),
+            FlexSlotMode.Custom => ModePrompts.For(RefinedMode.Custom, config),
             // Pur (and any future mode) carries no prompt: skip the refiner.
             _ => null,
         };
