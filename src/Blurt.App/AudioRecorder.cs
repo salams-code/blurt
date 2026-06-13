@@ -46,30 +46,44 @@ internal sealed class AudioRecorder : IDisposable
 
         var deviceNumber = resolution.DeviceIndex ?? DefaultDeviceNumber;
 
-        _buffer = new MemoryStream();
-        _waveIn = new WaveInEvent
-        {
-            DeviceNumber = deviceNumber,
-            WaveFormat = new WaveFormat(rate: 16000, bits: 16, channels: 1),
-        };
-        // IgnoreDisposeStream: disposing the writer finalizes the WAV header
-        // without closing the MemoryStream we still need to hand out.
-        _writer = new WaveFileWriter(new IgnoreDisposeStream(_buffer), _waveIn.WaveFormat);
-        _waveIn.DataAvailable += OnDataAvailable;
-
+        // Build everything into locals and commit to the fields only once recording
+        // has actually started. If any step throws (device gone, permission denied,
+        // a WaveFileWriter hiccup), the fields stay null — so IsRecording can never
+        // report true over a half-built recorder, which is what later made Stop()
+        // dereference a null writer/buffer and crash the app from the hook callback.
+        var buffer = new MemoryStream();
+        WaveInEvent? waveIn = null;
+        WaveFileWriter? writer = null;
         try
         {
-            _waveIn.StartRecording();
+            waveIn = new WaveInEvent
+            {
+                DeviceNumber = deviceNumber,
+                WaveFormat = new WaveFormat(rate: 16000, bits: 16, channels: 1),
+            };
+            // IgnoreDisposeStream: disposing the writer finalizes the WAV header
+            // without closing the MemoryStream we still need to hand out.
+            writer = new WaveFileWriter(new IgnoreDisposeStream(buffer), waveIn.WaveFormat);
+
+            // Publish the writer/buffer before OnDataAvailable can fire, then start.
+            _buffer = buffer;
+            _writer = writer;
+            waveIn.DataAvailable += OnDataAvailable;
+            _waveIn = waveIn;
+            waveIn.StartRecording();
         }
         catch
         {
-            // No capture device / permission denied: NAudio throws here. Reset to
-            // a clean not-recording state (so IsRecording is false and the next
-            // press starts fresh) and rethrow for the caller to surface as a
-            // fail-soft notice rather than a crash.
-            _waveIn.DataAvailable -= OnDataAvailable;
-            _waveIn.Dispose();
-            _writer.Dispose();
+            // No capture device / permission denied (or any construction failure):
+            // tear down whatever was built and leave a clean not-recording state, then
+            // rethrow for the caller to surface as a fail-soft notice rather than a crash.
+            if (waveIn is not null)
+            {
+                waveIn.DataAvailable -= OnDataAvailable;
+                waveIn.Dispose();
+            }
+            writer?.Dispose();
+            buffer.Dispose();
             _waveIn = null;
             _writer = null;
             _buffer = null;
@@ -111,12 +125,23 @@ internal sealed class AudioRecorder : IDisposable
 
         waveIn.DataAvailable -= OnDataAvailable;
         waveIn.Dispose();
-        _writer!.Dispose();   // flushes data length into the WAV header
 
-        var buffer = _buffer!;
+        // Detach into locals before disposing, and null-check rather than assume the
+        // writer/buffer are set: with an atomic Start they always are, but Stop must
+        // never throw an NRE here — it runs inside the keyboard-hook callback, where
+        // an escaping exception kills the whole process.
+        var writer = _writer;
+        var buffer = _buffer;
         _waveIn = null;
         _writer = null;
         _buffer = null;
+
+        writer?.Dispose();   // flushes data length into the WAV header
+
+        if (buffer is null)
+        {
+            return new MemoryStream();   // nothing captured — hand back an empty stream
+        }
 
         buffer.Position = 0;
         return buffer;

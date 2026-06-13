@@ -94,17 +94,29 @@ internal sealed class KeyboardHook : IDisposable
 
             if (edge is { } keyEdge)
             {
-                var data = Marshal.PtrToStructure<KbdLlHookStruct>(lParam);
-                var decision = _resolver.Process(new KeyInput((int)data.vkCode, keyEdge));
-
-                if (decision.Trigger is { } trigger)
+                try
                 {
-                    TriggerObserved?.Invoke(trigger);
+                    var data = Marshal.PtrToStructure<KbdLlHookStruct>(lParam);
+                    var decision = _resolver.Process(new KeyInput((int)data.vkCode, keyEdge));
+
+                    if (decision.Trigger is { } trigger)
+                    {
+                        TriggerObserved?.Invoke(trigger);
+                    }
+
+                    if (decision.Swallow)
+                    {
+                        return 1;   // non-zero return blocks the keystroke from the rest of the system
+                    }
                 }
-
-                if (decision.Swallow)
+                catch
                 {
-                    return 1;   // non-zero return blocks the keystroke from the rest of the system
+                    // Last-resort safety net: a low-level hook callback runs in a context
+                    // where an escaping exception tears down the whole process (it bypasses
+                    // WinForms' ThreadException). Diagnosable failures are caught and
+                    // surfaced upstream (TrayApplicationContext.OnTriggerObserved); anything
+                    // that still reaches here is swallowed so the app survives, and the key
+                    // is let through (fall to CallNextHookEx) rather than silently eaten.
                 }
             }
         }

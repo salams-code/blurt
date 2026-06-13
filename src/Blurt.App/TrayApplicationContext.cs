@@ -173,6 +173,25 @@ internal sealed class TrayApplicationContext : ApplicationContext
     // tap-to-cycle / hold-to-dictate with the current mode (issue 07).
     private void OnTriggerObserved(TriggerEvent trigger)
     {
+        // Fail-soft (design §10): this runs inside the low-level keyboard-hook callback,
+        // where an escaping exception kills the whole process (it bypasses WinForms'
+        // ThreadException). A dictation hiccup must never do that — catch it, tell the
+        // user, drop any half-recorded take, and reset so the next press starts clean.
+        try
+        {
+            DispatchTrigger(trigger);
+        }
+        catch (Exception ex)
+        {
+            _notifier.Notify($"Dictation error — skipped this one. ({ex.Message})", NoticeLevel.Error);
+            try { _recorder.Discard(); } catch { /* best-effort cleanup */ }
+            _flexSlotDownTicks = null;
+            ReturnToIdle();
+        }
+    }
+
+    private void DispatchTrigger(TriggerEvent trigger)
+    {
         // Capture the also-translate modifier at press time (issue 39): the Shift state
         // is read when the chord goes down, and the handlers consume it on key-up when
         // they process the take. Per-dictation, so it's never persisted.
