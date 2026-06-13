@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:ClassModifier="internal"
         Title="Welcome to Blurt"
+        Icon="assets/blurt.ico"
         Width="580" Height="600"
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize"

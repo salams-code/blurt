@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:ClassModifier="internal"
         Title="Blurt settings"
+        Icon="assets/blurt.ico"
         Width="580" Height="700"
         MinWidth="480" MinHeight="440"
         WindowStartupLocation="CenterScreen"

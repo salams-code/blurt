@@ -14,6 +14,9 @@
     <RootNamespace>Blurt.App</RootNamespace>
     <!-- Product version (first public release). Stamps Assembly/File/Informational version. -->
     <Version>0.1.0</Version>
+    <!-- The exe / taskbar / Alt-Tab icon: the Blurt mark. Regenerate from the brand
+         geometry by running Blurt.exe with the export-icon dev flag (see BlurtLogo). -->
+    <ApplicationIcon>assets\blurt.ico</ApplicationIcon>
   </PropertyGroup>
 
   <!-- Enabling UseWPF alongside UseWindowsForms narrows the implicit-usings set
@@ -22,6 +25,12 @@
        editing each unrelated file. -->
   <ItemGroup>
     <Using Include="System.IO" />
+  </ItemGroup>
+
+  <!-- The same .ico, also compiled in as a WPF resource so each Window can show it
+       on its title bar via Icon="assets/blurt.ico". -->
+  <ItemGroup>
+    <Resource Include="assets\blurt.ico" />
   </ItemGroup>
 
   <ItemGroup>

@@ -15,6 +15,17 @@ internal static class Program
             return;
         }
 
+        // Dev-only: (re)generate the window/exe icon from the brand mark, then exit.
+        // Runs before any UI/tray. Pass the output path, e.g.
+        //   Blurt.exe --export-icon src\Blurt.App\assets\blurt.ico
+        var cliArgs = Environment.GetCommandLineArgs();
+        var iconIdx = Array.IndexOf(cliArgs, "--export-icon");
+        if (iconIdx >= 0)
+        {
+            BlurtLogo.ExportBrandIco(iconIdx + 1 < cliArgs.Length ? cliArgs[iconIdx + 1] : "blurt.ico");
+            return;
+        }
+
         // Crash capture: until now an unhandled exception left nothing to inspect.
         // Wire a self-rotating log and route every unhandled-exception channel to
         // it before anything else can throw, so a tester's crash is recoverable.
