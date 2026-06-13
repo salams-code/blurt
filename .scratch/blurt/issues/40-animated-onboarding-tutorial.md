@@ -1,6 +1,6 @@
 # 40 — Animated onboarding tutorial (teach first-run users how to drive Blurt)
 
-Status: ready-for-human
+Status: done (built 2026-06-14 — simulated-demo variant; HITL click-through recommended)
 Type: HITL design + implementation
 
 ## Parent
@@ -43,12 +43,12 @@ mechanism is proven (overlay Storyboard/DispatcherTimer, issue 33).
 
 ## Acceptance criteria
 
-- [ ] First run shows a teaching step (after setup) covering push-to-talk, the three
+- [x] First run shows a teaching step (after setup) covering push-to-talk, the three
       triggers, and Flex tap/hold + modes.
-- [ ] It is animated, reusing the overlay-pill visual language.
-- [ ] The tutorial can be replayed later from the tray menu.
-- [ ] Skippable; never blocks a returning user.
-- [ ] Any pure content/sequence logic lives in `Blurt.Core`, unit-tested; suite green.
+- [x] It is animated, reusing the overlay-pill visual language.
+- [x] The tutorial can be replayed later from the tray menu.
+- [x] Skippable; never blocks a returning user.
+- [x] Any pure content/sequence logic lives in `Blurt.Core`, unit-tested; suite green.
 
 ## Blocked by
 
@@ -58,3 +58,31 @@ mechanism is proven (overlay Storyboard/DispatcherTimer, issue 33).
 
 Related: the live-status overlay (issue 33) provides the animation building blocks;
 the privacy-tier step (issue 27) is part of the existing setup wizard this extends.
+
+## Comments
+
+**2026-06-14 (agent) — built (simulated-demo variant; user's design call).**
+
+- **Core** (commit `7edbb1f`, TDD): `Tutorial` (card order + per-card title/body,
+  one source of truth) and `TutorialDemo` (mode-flash + live-status cues that reuse
+  the shipped `FlexSlotOrder` and `StatusLabel` verbs, so the lesson is exactly what
+  the user sees). 8 tests; suite 262 green.
+- **Shell**: `TutorialWindow.xaml`/`.cs` — five cards (push-to-talk → triggers →
+  Flex modes → live status → try-it), each illustrated by the **real** status pill
+  (pulse + animated ellipsis for live phases, per-mode colour flashes for Flex),
+  reusing the overlay animation tech (issue 33) and theme brushes. Skippable; Back
+  disabled on card 1; the last card's button reads "Got it".
+- **Wiring** (`TrayApplicationContext`): plays once right after first-run onboarding;
+  replayable any time from the new tray entry **"How to use Blurt…"**; dev affordance
+  `Blurt.exe --tutorial` opens it directly (no settings wipe needed to view it).
+  Fail-soft — a broken tutorial never blocks launch or the tray.
+- **Design decision (HITL):** user chose the **simulated demo** finale (the pill
+  plays a full take) over a live mic capture — robust during onboarding (no model/
+  mic dependency) and faithful (the genuine pill, not a mock-up).
+- **Verified**: App builds clean (0 warnings/0 errors); `--tutorial` renders
+  correctly (card 1: live "listening" pill, dark theme, nav buttons).
+
+HITL UX check recommended: tray → "How to use Blurt…", click through all five cards;
+confirm the Flex card flashes Pur (green) / Bullets (blue) / Custom (purple) / Email
+(teal), and the live-status cards step listening → transcribing → fixing with the
+pulsing dot + animated ellipsis.

@@ -82,6 +82,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         var recentMenu = new ToolStripMenuItem("Recent dictations");
         menu.Items.Add(recentMenu);
         menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add("How to use Blurt…", image: null, (_, _) => RunTutorial());
         menu.Items.Add("Settings…", image: null, (_, _) => OpenSettings());
         menu.Items.Add("Exit", image: null, (_, _) => ExitApp());
 
@@ -101,6 +102,12 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             RunOnboarding();
             config = _settings.Load();
+
+            // First run teaches as well as configures (issue 40): right after the
+            // setup wizard, play the animated tutorial once so a newcomer learns
+            // push-to-talk, the triggers and the Flex modes. Replayable later from
+            // the tray ("How to use Blurt…"); a returning user never sees it.
+            RunTutorial();
         }
 
         // Read the overlay anchor and sound toggle at start-up. Both are now applied
@@ -141,6 +148,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
             OpenSettings();
         else if (launchArgs.Contains("--onboarding"))
             RunOnboarding();
+        else if (launchArgs.Contains("--tutorial"))
+            RunTutorial();
         else if (launchArgs.Contains("--overlay"))
             _overlay.Show(OverlayState.Listening);
         else if (launchArgs.Contains("--traymenu"))
@@ -735,6 +744,22 @@ internal sealed class TrayApplicationContext : ApplicationContext
             // Never let onboarding block launch: fall through to the tray. The flow
             // simply re-offers next start (OnboardingCompleted stays false).
             System.Diagnostics.Debug.WriteLine($"Onboarding skipped: {ex}");
+        }
+    }
+
+    // Play the first-run teaching tutorial (issue 40), modally on this STA thread
+    // like onboarding. No dependencies — the cards/copy are pure Core; the window
+    // just animates them. Guarded so a broken tutorial can never block launch or
+    // the tray; it's a teaching aid, not a gate.
+    private void RunTutorial()
+    {
+        try
+        {
+            new TutorialWindow().ShowDialog();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Tutorial skipped: {ex}");
         }
     }
 
