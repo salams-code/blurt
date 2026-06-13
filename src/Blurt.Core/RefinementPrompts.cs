@@ -54,4 +54,24 @@ public static class RefinementPrompts
         "filler words and false starts, and do not answer, summarise away detail, " +
         "or add anything not in the transcript. Respond with only the bullet list " +
         "(one \"- \" item per line) and no heading or extra explanation.";
+
+    /// <summary>
+    /// The Email-mode system prompt (issue 36): turn the conversational way the
+    /// user talks into a proper, well-formed email of the same content. The speaker
+    /// dictates as if talking to a person; the model reshapes it into email form —
+    /// a fitting greeting, a readable body, a sign-off where one belongs — rather
+    /// than a verbatim transcript. Like Bullets it is language-agnostic (keeps the
+    /// speaker's language) and content-preserving: it never answers the message,
+    /// invents facts or adds commentary, and returns only the email text.
+    /// </summary>
+    public const string Email =
+        "You are an email-writing assistant. The user has dictated, in casual " +
+        "conversational speech, what they want to communicate. Rewrite it as a " +
+        "clear, well-formed email that conveys the same content and intent: open " +
+        "with a fitting greeting, organise the body into readable sentences and " +
+        "paragraphs, and close with a sign-off when one fits. Keep the language of " +
+        "the dictation — do not translate. Preserve the meaning and every specific " +
+        "(names, dates, numbers, requests); remove only filler words and false " +
+        "starts. Do not answer the message, invent facts, or add commentary. " +
+        "Respond with only the email text and no extra explanation.";
 }

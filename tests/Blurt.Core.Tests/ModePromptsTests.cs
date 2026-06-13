@@ -17,15 +17,18 @@ public class ModePromptsTests
     [InlineData(RefinedMode.Fix)]
     [InlineData(RefinedMode.English)]
     [InlineData(RefinedMode.Bullets)]
+    [InlineData(RefinedMode.Email)]
     public void DefaultFor_an_always_on_mode_is_its_shipped_constant(RefinedMode mode)
     {
-        // The three always-on refined modes ship with the RefinementPrompts
-        // constants as their defaults, so an untouched install behaves as today.
+        // The always-on refined modes ship with the RefinementPrompts constants as
+        // their defaults, so an untouched install behaves as today (Email, issue 36,
+        // joins Fix/English/Bullets here — it always refines).
         var expected = mode switch
         {
             RefinedMode.Fix => RefinementPrompts.Fix,
             RefinedMode.English => RefinementPrompts.English,
             RefinedMode.Bullets => RefinementPrompts.Bullets,
+            RefinedMode.Email => RefinementPrompts.Email,
             _ => "",
         };
 
@@ -44,6 +47,7 @@ public class ModePromptsTests
     [InlineData(RefinedMode.Fix)]
     [InlineData(RefinedMode.English)]
     [InlineData(RefinedMode.Bullets)]
+    [InlineData(RefinedMode.Email)]
     [InlineData(RefinedMode.Custom)]
     public void For_an_unedited_config_returns_the_default(RefinedMode mode)
     {
@@ -60,12 +64,14 @@ public class ModePromptsTests
             FixPrompt = "Just fix the commas.",
             EnglishPrompt = "Translate to British English.",
             BulletsPrompt = "Make terse bullets.",
+            EmailPrompt = "Write a curt email.",
             CustomPrompt = "Speak like a pirate.",
         };
 
         Assert.Equal("Just fix the commas.", ModePrompts.For(RefinedMode.Fix, config));
         Assert.Equal("Translate to British English.", ModePrompts.For(RefinedMode.English, config));
         Assert.Equal("Make terse bullets.", ModePrompts.For(RefinedMode.Bullets, config));
+        Assert.Equal("Write a curt email.", ModePrompts.For(RefinedMode.Email, config));
         Assert.Equal("Speak like a pirate.", ModePrompts.For(RefinedMode.Custom, config));
     }
 
@@ -73,15 +79,17 @@ public class ModePromptsTests
     [InlineData(RefinedMode.Fix)]
     [InlineData(RefinedMode.English)]
     [InlineData(RefinedMode.Bullets)]
+    [InlineData(RefinedMode.Email)]
     public void A_blank_override_on_an_always_on_mode_falls_back_to_the_default(RefinedMode mode)
     {
-        // Fix/English/Bullets always refine; blanking the field must not silently
-        // disable the mode — it falls back to the shipped default instead.
+        // Fix/English/Bullets/Email always refine; blanking the field must not
+        // silently disable the mode — it falls back to the shipped default instead.
         var config = mode switch
         {
             RefinedMode.Fix => BlurtConfig.Default with { FixPrompt = "   " },
             RefinedMode.English => BlurtConfig.Default with { EnglishPrompt = "" },
             RefinedMode.Bullets => BlurtConfig.Default with { BulletsPrompt = "\t\n" },
+            RefinedMode.Email => BlurtConfig.Default with { EmailPrompt = "   " },
             _ => BlurtConfig.Default,
         };
 

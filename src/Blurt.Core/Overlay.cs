@@ -53,21 +53,23 @@ public static class FlexSlotOverlay
         FlexSlotMode.Pur => "Pur",
         FlexSlotMode.Bullets => "• Bullets",
         FlexSlotMode.Custom => "Custom",
+        FlexSlotMode.Email => "✉ Email",
         _ => mode.ToString(),
     };
 
     /// <summary>
     /// The status-dot colour for <paramref name="mode"/>, distinct per mode so the
     /// colour alone disambiguates: green = Pur (the offline/verbatim mode), blue =
-    /// Bullets, purple = Custom. Deliberately none of the status colours
-    /// (red/amber) and never the idle grey, so a mode flash never looks like a
-    /// recording/processing pill.
+    /// Bullets, purple = Custom, teal = Email. Deliberately none of the status
+    /// colours (red/amber) and never the idle grey, so a mode flash never looks
+    /// like a recording/processing pill.
     /// </summary>
     public static (byte R, byte G, byte B) Dot(FlexSlotMode mode) => mode switch
     {
         FlexSlotMode.Pur => (40, 167, 69),       // green
         FlexSlotMode.Bullets => (13, 110, 253),  // blue
         FlexSlotMode.Custom => (111, 66, 193),   // purple
+        FlexSlotMode.Email => (23, 162, 184),    // teal
         _ => (128, 128, 128),                    // grey (unknown — should not happen)
     };
 }
@@ -97,6 +99,9 @@ public static class StatusLabel
 
     /// <summary>Refining via the Bullets mode (reformat to bullet points).</summary>
     public const string Bulleting = "bulleting";
+
+    /// <summary>Refining via the Email mode (rewrite as a well-formed email).</summary>
+    public const string Emailing = "emailing";
 
     /// <summary>Refining via the English mode (translate to English).</summary>
     public const string Translating = "translating";

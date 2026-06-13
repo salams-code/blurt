@@ -335,11 +335,14 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
         else
         {
-            // Bullets and Custom both refine, but the status pill names which.
-            var refiningLabel = currentMode == FlexSlotMode.Bullets
-                ? StatusLabel.Bulleting
-                : StatusLabel.Refining;
-            _ = RefineAndInjectAsync(audio, prompt, refiningLabel);   // Bullets / configured Custom
+            // Bullets, Email and Custom all refine, but the status pill names which.
+            var refiningLabel = currentMode switch
+            {
+                FlexSlotMode.Bullets => StatusLabel.Bulleting,
+                FlexSlotMode.Email => StatusLabel.Emailing,
+                _ => StatusLabel.Refining,
+            };
+            _ = RefineAndInjectAsync(audio, prompt, refiningLabel);   // Bullets / Email / configured Custom
         }
     }
 

@@ -80,10 +80,11 @@ public class SettingsStoreTests
                     [TriggerKind.FlexSlot] = "Ctrl+F3",
                 },
                 FlexSlotOrder = [FlexSlotMode.Custom, FlexSlotMode.Pur, FlexSlotMode.Bullets],
-                // Per-mode editable prompts (issue 35) must round-trip too.
+                // Per-mode editable prompts (issue 35; Email added in issue 36) must round-trip too.
                 FixPrompt = "Just fix the punctuation.",
                 EnglishPrompt = "Translate to British English.",
                 BulletsPrompt = "Terse bullets, no sub-points.",
+                EmailPrompt = "Keep the email short and formal.",
                 CustomPrompt = "Translate to formal German.",
                 OverlayAnchor = OverlayAnchor.BottomCenter,
                 SoundEnabled = true,
@@ -159,11 +160,15 @@ public class SettingsStoreTests
             Assert.Equal(RefinementPrompts.Fix, config.FixPrompt);
             Assert.Equal(RefinementPrompts.English, config.EnglishPrompt);
             Assert.Equal(RefinementPrompts.Bullets, config.BulletsPrompt);
+            // Email (issue 36) is newer still — an older config has no key for it
+            // and must deserialise to the shipped default too.
+            Assert.Equal(RefinementPrompts.Email, config.EmailPrompt);
             // The one key that was present is still honoured.
             Assert.Equal("Speak like a pirate.", config.CustomPrompt);
             // And resolution falls back to the shipped wording for the absent keys.
             Assert.Equal(RefinementPrompts.Fix, ModePrompts.For(RefinedMode.Fix, config));
             Assert.Equal(RefinementPrompts.English, ModePrompts.For(RefinedMode.English, config));
+            Assert.Equal(RefinementPrompts.Email, ModePrompts.For(RefinedMode.Email, config));
         }
         finally
         {

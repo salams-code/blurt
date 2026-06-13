@@ -184,6 +184,7 @@ internal partial class SettingsWindow : Window
         FixPromptBox.Text = config.FixPrompt;
         EnglishPromptBox.Text = config.EnglishPrompt;
         BulletsPromptBox.Text = config.BulletsPrompt;
+        EmailPromptBox.Text = config.EmailPrompt;
 
         FlexOrderBox.Text = string.Join(", ", config.FlexSlotOrder);
         CustomPromptBox.Text = config.CustomPrompt;
@@ -532,6 +533,7 @@ internal partial class SettingsWindow : Window
             FixPrompt = FixPromptBox.Text,
             EnglishPrompt = EnglishPromptBox.Text,
             BulletsPrompt = BulletsPromptBox.Text,
+            EmailPrompt = EmailPromptBox.Text,
             CustomPrompt = CustomPromptBox.Text,
             OverlayAnchor = (OverlayAnchor)OverlayAnchorBox.SelectedItem,
             SoundEnabled = SoundEnabledBox.IsChecked == true,

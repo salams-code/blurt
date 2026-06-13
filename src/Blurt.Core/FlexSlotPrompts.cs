@@ -28,6 +28,7 @@ public static class FlexSlotPrompts
         var prompt = mode switch
         {
             FlexSlotMode.Bullets => ModePrompts.For(RefinedMode.Bullets, config),
+            FlexSlotMode.Email => ModePrompts.For(RefinedMode.Email, config),
             FlexSlotMode.Custom => ModePrompts.For(RefinedMode.Custom, config),
             // Pur (and any future mode) carries no prompt: skip the refiner.
             _ => null,

@@ -36,6 +36,18 @@ public class FlexSlotPromptsTests
     }
 
     [Fact]
+    public void Email_resolves_to_the_email_formation_prompt()
+    {
+        // Holding on Email must carry a prompt that turns conversational speech
+        // into a well-formed email (issue 36, criterion 2) — never null, so the
+        // caller runs the refiner rather than dropping to a verbatim transcript.
+        var prompt = FlexSlotPrompts.For(FlexSlotMode.Email, BlurtConfig.Default);
+
+        Assert.False(string.IsNullOrWhiteSpace(prompt));
+        Assert.Contains("email", prompt!, System.StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Custom_with_no_stored_prompt_resolves_to_no_refiner_prompt()
     {
         // An empty custom prompt has nothing to refine with; like Pur it resolves

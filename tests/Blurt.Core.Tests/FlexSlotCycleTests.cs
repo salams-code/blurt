@@ -20,6 +20,8 @@ public class FlexSlotCycleTests
     [Fact]
     public void Cycle_advances_through_the_default_order_and_wraps_around()
     {
+        // Default order is Pur → Bullets → Custom → Email (issue 36 added Email to
+        // the cycle so a tap reaches it), then wraps back to Pur.
         var cycle = new FlexSlotCycle();
 
         Assert.Equal(FlexSlotMode.Bullets, cycle.Cycle());
@@ -28,7 +30,10 @@ public class FlexSlotCycleTests
         Assert.Equal(FlexSlotMode.Custom, cycle.Cycle());
         Assert.Equal(FlexSlotMode.Custom, cycle.Current);
 
-        // Wrap-around: Custom → Pur.
+        Assert.Equal(FlexSlotMode.Email, cycle.Cycle());
+        Assert.Equal(FlexSlotMode.Email, cycle.Current);
+
+        // Wrap-around: Email → Pur.
         Assert.Equal(FlexSlotMode.Pur, cycle.Cycle());
         Assert.Equal(FlexSlotMode.Pur, cycle.Current);
     }

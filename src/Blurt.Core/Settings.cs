@@ -38,6 +38,9 @@ public enum FlexSlotMode
 
     /// <summary>Apply the user-defined <see cref="BlurtConfig.CustomPrompt"/> (LLM).</summary>
     Custom,
+
+    /// <summary>Rewrite conversational speech into a well-formed email (LLM, issue 36).</summary>
+    Email,
 }
 
 /// <summary>
@@ -59,6 +62,9 @@ public enum RefinedMode
 
     /// <summary>Apply the user-defined prompt (no built-in default wording).</summary>
     Custom,
+
+    /// <summary>Rewrite conversational speech into a well-formed email.</summary>
+    Email,
 }
 
 /// <summary>Where the status overlay positions itself (design contract §9).</summary>
@@ -126,9 +132,9 @@ public sealed record BlurtConfig
             [TriggerKind.FlexSlot] = "AltGr+-",
         };
 
-    /// <summary>The order the Flex slot cycles its modes in (design default: Pur → Bullets → Custom).</summary>
+    /// <summary>The order the Flex slot cycles its modes in (default: Pur → Bullets → Custom → Email; Email added in issue 36).</summary>
     public IReadOnlyList<FlexSlotMode> FlexSlotOrder { get; init; } =
-        [FlexSlotMode.Pur, FlexSlotMode.Bullets, FlexSlotMode.Custom];
+        [FlexSlotMode.Pur, FlexSlotMode.Bullets, FlexSlotMode.Custom, FlexSlotMode.Email];
 
     /// <summary>
     /// The Fix mode's editable system prompt (issue 35). Defaults to the shipped
@@ -145,6 +151,16 @@ public sealed record BlurtConfig
 
     /// <summary>The Bullets mode's editable system prompt (issue 35). See <see cref="FixPrompt"/>.</summary>
     public string BulletsPrompt { get; init; } = RefinementPrompts.Bullets;
+
+    /// <summary>
+    /// The Email mode's editable system prompt (issue 36). Like the other always-on
+    /// modes it defaults to its shipped <see cref="RefinementPrompts.Email"/> wording
+    /// and a blanked field falls back to that default (Email always refines, so it
+    /// can't be silently disabled); resolved per dictation via <see cref="ModePrompts"/>.
+    /// A config written before this setting existed has no key for it and deserialises
+    /// to this default.
+    /// </summary>
+    public string EmailPrompt { get; init; } = RefinementPrompts.Email;
 
     /// <summary>
     /// User-defined prompt applied by the <see cref="FlexSlotMode.Custom"/> slot.
@@ -206,6 +222,7 @@ public sealed record BlurtConfig
             && FixPrompt == other.FixPrompt
             && EnglishPrompt == other.EnglishPrompt
             && BulletsPrompt == other.BulletsPrompt
+            && EmailPrompt == other.EmailPrompt
             && CustomPrompt == other.CustomPrompt
             && OverlayAnchor == other.OverlayAnchor
             && SoundEnabled == other.SoundEnabled
@@ -228,6 +245,7 @@ public sealed record BlurtConfig
         hash.Add(FixPrompt);
         hash.Add(EnglishPrompt);
         hash.Add(BulletsPrompt);
+        hash.Add(EmailPrompt);
         hash.Add(CustomPrompt);
         hash.Add(OverlayAnchor);
         hash.Add(SoundEnabled);

@@ -23,6 +23,7 @@ public class StatusLabelTests
         {
             StatusLabel.Fixing,
             StatusLabel.Bulleting,
+            StatusLabel.Emailing,
             StatusLabel.Translating,
             StatusLabel.Refining,
         };
@@ -41,6 +42,7 @@ public class StatusLabelTests
                      StatusLabel.Transcribing(local: false),
                      StatusLabel.Fixing,
                      StatusLabel.Bulleting,
+                     StatusLabel.Emailing,
                      StatusLabel.Translating,
                      StatusLabel.Refining,
                  })

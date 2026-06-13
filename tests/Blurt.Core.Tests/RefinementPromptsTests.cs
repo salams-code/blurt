@@ -42,4 +42,18 @@ public class RefinementPromptsTests
         // The input's language is preserved (not pinned to German like Fix).
         Assert.Contains("language", prompt, System.StringComparison.OrdinalIgnoreCase);
     }
+
+    [Fact]
+    public void Email_prompt_instructs_an_email_rewrite_from_conversational_speech()
+    {
+        var prompt = RefinementPrompts.Email;
+
+        Assert.False(string.IsNullOrWhiteSpace(prompt));
+        // It produces an email (issue 36), not a verbatim transcript.
+        Assert.Contains("email", prompt, System.StringComparison.OrdinalIgnoreCase);
+        // It reshapes conversational speech rather than transcribing it.
+        Assert.Contains("rewrite", prompt, System.StringComparison.OrdinalIgnoreCase);
+        // Like Bullets it keeps the speaker's language (not pinned to German).
+        Assert.Contains("language", prompt, System.StringComparison.OrdinalIgnoreCase);
+    }
 }

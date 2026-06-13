@@ -23,6 +23,7 @@ public static class ModePrompts
         RefinedMode.Fix => RefinementPrompts.Fix,
         RefinedMode.English => RefinementPrompts.English,
         RefinedMode.Bullets => RefinementPrompts.Bullets,
+        RefinedMode.Email => RefinementPrompts.Email,
         RefinedMode.Custom => "",
         _ => "",
     };
@@ -52,6 +53,7 @@ public static class ModePrompts
         RefinedMode.Fix => config.FixPrompt,
         RefinedMode.English => config.EnglishPrompt,
         RefinedMode.Bullets => config.BulletsPrompt,
+        RefinedMode.Email => config.EmailPrompt,
         RefinedMode.Custom => config.CustomPrompt,
         _ => "",
     };
