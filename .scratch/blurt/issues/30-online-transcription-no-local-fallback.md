@@ -1,6 +1,6 @@
 # 30 — Online transcription has no offline → local fallback (Full Cloud breaks with no internet)
 
-Status: triage (reported by user 2026-06-13, confirmed against code)
+Status: done (triaged + fixed via TDD, 2026-06-13) — HITL offline repro still pending
 
 ## Parent
 
@@ -46,13 +46,54 @@ So Full Cloud + offline = dead dictation, by current design.
 
 ## Acceptance criteria (draft — refine in triage)
 
-- [ ] A network failure during Online transcription falls back to a usable local
-      model rather than losing the dictation (decision: which model).
-- [ ] The fallback is fail-soft and surfaced with an appropriate notice.
-- [ ] Pure decision lives in `Blurt.Core` (extend `TranscriberResolver` /
-      pipeline), unit-tested; the suite stays green.
+- [x] A network failure during Online transcription falls back to a usable local
+      model rather than losing the dictation (decision: any installed model).
+- [x] The fallback is fail-soft and surfaced with an appropriate notice.
+- [x] Pure decision lives in `Blurt.Core` (extended `DictationPipeline` +
+      `ModelProvisioner`), unit-tested; the suite stays green (199).
+
+## Triage decisions (user, 2026-06-13)
+
+1. **Fall back?** Yes — fail-soft, mirroring the refinement `RefinedOffline`.
+2. **Which model?** Any already-installed model (prefer the configured one if
+   present, else any `ggml-*.bin` on disk). Never a download — that's what avoids
+   the offline-download trap.
+3. **Surface it?** Yes — its own notice, like `RefinedOffline`.
+
+On "why did the download fail anyway": the user is on **Online** source, so the
+`local` factory was never invoked and `ProvisionTranscriberAsync` (the only thing
+that downloads) never ran — the configured `large-v3-turbo` was never fetched
+(only `small` is on disk). When the network dropped, falling back to the
+*configured* model would have tried a ~1.5 GB download that can't complete offline.
+Falling back to *any installed* model (small) needs no network → the chosen design.
+
+## What was built (TDD, suite 191→199)
+
+- **Core `DictationOutcome.TranscribedOffline`** ([DictationPipeline.cs](../../../src/Blurt.Core/DictationPipeline.cs))
+  — new fail-soft outcome, sibling of `RefinedOffline` for the transcription step.
+- **`DictationPipeline`** gained an optional `transcribeFallback` delegate: when
+  the primary transcriber throws and a fallback is wired, it rewinds the (seekable)
+  WAV stream and transcribes through the fallback, then flows the result through
+  refinement as normal. Precedence: `InjectionBlocked` > `TranscribedOffline` >
+  `RefinedOffline` > `Injected`. 5 new pipeline tests (incl. the both-offline case
+  and the stream-rewind).
+- **`ModelProvisioner.FindInstalledModelPath(preferred)`** ([ModelProvisioning.cs](../../../src/Blurt.Core/ModelProvisioning.cs))
+  — returns the configured model if present, else any installed `ggml-*.bin`, else
+  null (never downloads). 3 new tests.
+- **Notice** ([Notifier.cs](../../../src/Blurt.Core/Notifier.cs)): "Cloud
+  transcription offline — transcribed locally." (Warning).
+- **App wiring** ([TrayApplicationContext.cs](../../../src/Blurt.App/TrayApplicationContext.cs)):
+  `BuildLocalFallback()` builds the delegate from any installed model (offloaded
+  off the UI thread; null when nothing is installed → stays `TranscriptionFailed`),
+  wired into the refined-dictation pipeline.
+
+Out of scope (separate gap, issue 22 territory): a clearer "selected model not
+installed" signal so an Online user knows their configured local model was never
+fetched.
 
 ## Notes
 
 Reported live; not yet reproduced under instrumentation. The "fresh-machine /
-real-dictation" test (see HANDOFF) is the place to reproduce and validate any fix.
+real-dictation" test (see HANDOFF) is the place to reproduce and validate the fix
+end-to-end (Full Cloud, kill the network mid-dictation, confirm local fallback +
+the new notice).

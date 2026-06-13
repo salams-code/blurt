@@ -4,9 +4,17 @@ Context for continuing in a fresh session. Read this first.
 
 ## Where things stand
 
-Working on **v0.1.0 — first portable release** of Blurt. Two features built this
-session, release packaged locally, **nothing published**. A real bug was found
-(issue 30) that should be looked at before/with the release.
+Working on **v0.1.0 — first portable release** of Blurt. **Latest session
+(2026-06-13, continued):** built issues 30/31/32/33 (offline transcription
+fallback, flex-tap overlay feedback, crash log, live-status overlay) — all
+**code-only in the working tree, NOT committed**, but **published into
+`publish/Blurt-Portable/`** (re-published 20:10, `--selftest` PASS) so the running
+app has them. Suite **213 green**. Then captured a new backlog of six issues
+(34–39) via the to-issues skill — see below. **Next:** the user will start a fresh
+session and add one more issue. **Issues 30–33 are now committed locally on `main`**
+(user gave the go) in two commits — features+tests, then tracker docs; still **not
+pushed**. First-run model **download** may still be rough (user flagged it; ties to
+issues 22/30) — watch it during the fresh-machine test.
 
 ### Git state (IMPORTANT)
 - Branch `main`. **Nothing is pushed** — `origin/main` is ~10 commits behind,
@@ -48,13 +56,78 @@ $env:DOTNET_ROOT = "$env:USERPROFILE\.dotnet"
 PASS/FAIL/SKIP to `%TEMP%\blurt-selftest.txt` (native-whisper smoke test only —
 does NOT test real dictation or network).
 
-## OPEN BUG — issue 30 (found live by user)
-**Full Cloud + no internet = dictation lost, no fallback.** Confirmed in code:
-`TranscriberResolver` does Online with **no online→local fallback**; only
-*refinement* falls back offline, transcription doesn't. Plus the configured local
-model (large-v3-turbo) isn't installed (only `small` is), so a local attempt would
-need an impossible offline download. See `.scratch/blurt/issues/30-*.md`. Needs a
-triage decision (fall back to any installed local model? which? notice?).
+## issue 30 — FIXED (2026-06-13, code only; HITL offline repro still pending)
+**Full Cloud + no internet = dictation lost, no fallback.** Triaged + fixed via TDD
+(suite 191→199). Decisions: fall back to **any already-installed** local model
+(never a download — avoids the offline-download trap), surfaced with its own notice
+("Cloud transcription offline — transcribed locally."). Built: Core
+`DictationOutcome.TranscribedOffline` + `DictationPipeline.transcribeFallback`
+delegate (rewinds the stream, then runs refinement as normal) +
+`ModelProvisioner.FindInstalledModelPath` + app `BuildLocalFallback()` wired into
+the refined pipeline. **Why the download "failed":** Online source never ran the
+provisioner, so the configured large-v3-turbo was never fetched (only small on
+disk); falling back to the configured model would try an impossible offline
+download — hence "any installed". Still TODO: reproduce live offline (kill network
+mid-dictation) during the fresh-machine test. See `.scratch/blurt/issues/30-*.md`.
+**Not committed** — work is in the working tree only. The **`publish/Blurt-Portable/`
+folder was re-published with this fix** (2026-06-13 19:09, `--selftest` PASS) so it
+is runnable for testing; the **release zip `Blurt-0.1.0-win-x64.zip` was deliberately
+NOT rebuilt** — it stays the unchanged released v0.1.0 (this fix is post-v0.1.0,
+uncommitted/unreleased).
+
+## issue 31 + 32 — built 2026-06-13 (code only, in working tree, in Portable)
+- **Issue 31 — Flex tap feedback.** The mode always cycled; the tray balloon just
+  hid it (Windows throttles successive balloons → felt stuck until the old one
+  cleared). Fix: tap now flashes the mode in the **overlay pill** (instant,
+  repeatable, ~1.1 s auto-hide), with a **distinct label+colour per mode**
+  (Pur=green, "• Bullets"=blue, Custom=purple). Balloon dropped for taps. Core
+  `FlexSlotOverlay` + `OverlayController.FlashMode`. HITL confirm pending.
+- **Issue 32 — Crash log.** There was none. Added Core `RollingLog` (size-capped,
+  rotates to one `.1` backup, never throws) + global handlers in `Program.cs`
+  (AppDomain / WinForms ThreadException / UnobservedTask) + session banner. Log at
+  **`%APPDATA%\Blurt\logs\blurt.log`**. Verified: banner written on launch.
+
+## issue 33 — live status overlay (built 2026-06-13, code only, in Portable)
+The overlay is now a precise live status, not a generic "busy": Core `StatusLabel`
+(lowercase verbs, no baked-in "…") gives `listening` / `transcribing` /
+**`transcribing locally`** / `fixing` / `bulleting` / `translating` / `refining`;
+the pill pulses (dot opacity breathe) + animates the ellipsis while active, steady
+for the mode flash. App threads the verb per trigger and the refine delegate steps
+the label transcribing→refine-verb mid-op (`OverlayController.ShowActive` /
+`UpdateActive`). **Clarified with user:** Pur is hard-gated to local
+(`zeroNetwork:true`) regardless of settings — kept by design; the label now shows
+it ("transcribing locally"). User chose: verbs lowercase, dot-pulse + ellipsis.
+
+Suite **213 green** (was 199; +14 across issues 30/31/32/33). Portable
+**re-published 2026-06-13 20:10 with all four**, `--selftest` PASS; release zip
+still NOT rebuilt (stays v0.1.0). Running instances were stopped (with the user's
+OK) for each re-publish; app relaunched (PID 25232) for testing. **Committed locally
+on `main` (not pushed).**
+
+## Backlog captured this session — issues 34–39 (ready, not started)
+Tracer-bullet slices from the prompt-management / email / translate feature set
+(decisions made with the user; see each file). Dependency order:
+- **34 — Expanded hotkey vocabulary** (`ready-for-human`/HITL): allow more than
+  AltGr+{,.-}; design which keys/modifiers + capture UX + conflict rules. Enabler
+  for 39. **Start here for that thread.**
+- **35 — Editable prompts for all refined modes** (`ready-for-agent`): move
+  Fix/English/Bullets/Custom prompts into editable per-mode config, defaults
+  pre-filled. No blockers.
+- **36 — Email Flex mode** (`ready-for-agent`, blocked by 35): new `Email` Flex
+  mode, conversational speech → proper email.
+- **37 — Reset prompts to defaults with backup** (`ready-for-agent`, blocked by 35):
+  Reset backs up current prompts+names, then restores defaults (non-destructive).
+- **38 — Backup view/copy/restore UI** (`ready-for-agent`, blocked by 37).
+- **39 — "Also translate to English" via extra modifier** (`ready-for-agent`,
+  blocked by 34): hold a modifier during a refined dictation → output also in
+  English, composes with any mode; per-dictation; Pur stays zero-network.
+
+- **40 — Animated onboarding tutorial** (`ready-for-human`/HITL): teach first-run
+  users how to drive the app (push-to-talk, the hotkeys, Flex tap/hold + modes),
+  nicely presented and **animated**, reusing the overlay-pill animation tech.
+  Design-led; concept proposed in the issue.
+
+The user may still add a further issue next session.
 
 ## Pending / next steps
 1. **Fresh-machine first-run test** (user chose: real download, no pre-seed). Method
@@ -62,7 +135,8 @@ triage decision (fall back to any installed local model? which? notice?).
    `publish/Blurt-Portable/Blurt.exe` → exercise onboarding, model download,
    real dictation (cloud + Pur), autostart toggle → then **restore** the folder.
    Their real config (Full cloud, OpenAI key, small model) must come back intact.
-2. **Issue 30** — decide & implement the offline fallback.
+2. ~~**Issue 30** — decide & implement the offline fallback.~~ ✅ done in code
+   (2026-06-13); reproduce offline live during the fresh-machine test.
 3. **Release** — only on explicit go: install `gh` (or use web), `git push origin
    main`, tag `v0.1.0`, attach the zip.
 
