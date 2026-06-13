@@ -235,6 +235,18 @@
                                      VerticalContentAlignment="Top"
                                      VerticalScrollBarVisibility="Auto" />
                         </Grid>
+                        <!-- Reset (issue 37): returns every editable prompt above AND the
+                             Custom prompt below to its shipped default. Non-destructive —
+                             the current prompts are backed up first, so the reset is
+                             recoverable (the restore UI is issue 38). Takes effect on Save. -->
+                        <Button Content="Reset prompts to defaults"
+                                Style="{StaticResource LinkButton}"
+                                HorizontalAlignment="Left"
+                                Margin="0,12,0,0"
+                                Click="OnResetPrompts" />
+                        <TextBlock Style="{StaticResource Hint}"
+                                   Margin="0,4,0,0"
+                                   Text="Restores the default wording for every mode (including the Custom prompt). Your current prompts are backed up first, then applied when you click Save." />
                     </StackPanel>
                 </Border>
 

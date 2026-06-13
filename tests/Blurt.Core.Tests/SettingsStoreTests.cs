@@ -86,6 +86,15 @@ public class SettingsStoreTests
                 BulletsPrompt = "Terse bullets, no sub-points.",
                 EmailPrompt = "Keep the email short and formal.",
                 CustomPrompt = "Translate to formal German.",
+                // The prompt-reset backup slot (issue 37) must round-trip too.
+                PromptBackup = new PromptSnapshot
+                {
+                    FixPrompt = "old fix",
+                    EnglishPrompt = "old english",
+                    BulletsPrompt = "old bullets",
+                    EmailPrompt = "old email",
+                    CustomPrompt = "old custom",
+                },
                 OverlayAnchor = OverlayAnchor.BottomCenter,
                 SoundEnabled = true,
                 InputDeviceMode = InputDeviceMode.Specific,
@@ -165,6 +174,9 @@ public class SettingsStoreTests
             Assert.Equal(RefinementPrompts.Email, config.EmailPrompt);
             // The one key that was present is still honoured.
             Assert.Equal("Speak like a pirate.", config.CustomPrompt);
+            // The prompt-reset backup slot (issue 37) is absent in an older config —
+            // it deserialises to null (no backup yet), not a crash.
+            Assert.Null(config.PromptBackup);
             // And resolution falls back to the shipped wording for the absent keys.
             Assert.Equal(RefinementPrompts.Fix, ModePrompts.For(RefinedMode.Fix, config));
             Assert.Equal(RefinementPrompts.English, ModePrompts.For(RefinedMode.English, config));

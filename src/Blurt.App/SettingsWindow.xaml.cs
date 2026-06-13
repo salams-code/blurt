@@ -45,6 +45,11 @@ internal partial class SettingsWindow : Window
     private RefinementProvider? _fieldsProvider;
     private Dictionary<RefinementProvider, RefinementEndpoint> _endpoints = new();
 
+    // The prompt-reset backup slot (issue 37). Seeded from the loaded config and
+    // overwritten when the user clicks "Reset prompts to defaults"; persisted as part
+    // of the config on Save. Held here (not in a text box) since it has no visible field.
+    private PromptSnapshot? _promptBackup;
+
     /// <summary>
     /// The config that was persisted, set once <see cref="OnSave"/> succeeds (the
     /// window then closes). Non-null here is the save signal the caller's Closed
@@ -185,6 +190,7 @@ internal partial class SettingsWindow : Window
         EnglishPromptBox.Text = config.EnglishPrompt;
         BulletsPromptBox.Text = config.BulletsPrompt;
         EmailPromptBox.Text = config.EmailPrompt;
+        _promptBackup = config.PromptBackup;   // issue 37: carry the existing backup forward
 
         FlexOrderBox.Text = string.Join(", ", config.FlexSlotOrder);
         CustomPromptBox.Text = config.CustomPrompt;
@@ -495,6 +501,23 @@ internal partial class SettingsWindow : Window
                    // illegal to set on a Show()-modeless window and would crash).
     }
 
+    // Reset every editable prompt to its shipped default (issue 37). The decision —
+    // back up the current prompts into the single slot, then apply the defaults, and
+    // no-op when nothing is customised — lives in Core's PromptReset; this just feeds
+    // it the prompts currently in the fields and reflects the result back. The backup
+    // and the defaults persist together on Save; the restore UI is issue 38.
+    private void OnResetPrompts(object sender, RoutedEventArgs e)
+    {
+        var reset = PromptReset.Reset(BuildConfigFromFields());
+
+        _promptBackup = reset.PromptBackup;
+        FixPromptBox.Text = reset.FixPrompt;
+        EnglishPromptBox.Text = reset.EnglishPrompt;
+        BulletsPromptBox.Text = reset.BulletsPrompt;
+        EmailPromptBox.Text = reset.EmailPrompt;
+        CustomPromptBox.Text = reset.CustomPrompt;
+    }
+
     private void OnCancel(object sender, RoutedEventArgs e)
     {
         Close();   // modeless: close without touching DialogResult. SavedConfig stays
@@ -535,6 +558,7 @@ internal partial class SettingsWindow : Window
             BulletsPrompt = BulletsPromptBox.Text,
             EmailPrompt = EmailPromptBox.Text,
             CustomPrompt = CustomPromptBox.Text,
+            PromptBackup = _promptBackup,   // issue 37: persist the reset backup slot
             OverlayAnchor = (OverlayAnchor)OverlayAnchorBox.SelectedItem,
             SoundEnabled = SoundEnabledBox.IsChecked == true,
             InputDeviceMode = SelectedMicrophoneMode(),

@@ -169,6 +169,16 @@ public sealed record BlurtConfig
     /// </summary>
     public string CustomPrompt { get; init; } = "";
 
+    /// <summary>
+    /// The single backup slot for a prompt reset (issue 37): the editable prompts as
+    /// they were just before the user last reset them to defaults, so a reset is
+    /// always recoverable. <c>null</c> until the first reset (and on a config written
+    /// before this slot existed); overwritten on each reset (only the most recent
+    /// pre-reset state is kept). <see cref="PromptReset"/> writes it; the restore UI
+    /// is issue 38.
+    /// </summary>
+    public PromptSnapshot? PromptBackup { get; init; } = null;
+
     /// <summary>Where the status overlay anchors itself.</summary>
     public OverlayAnchor OverlayAnchor { get; init; } = OverlayAnchor.MousePointer;
 
@@ -224,6 +234,7 @@ public sealed record BlurtConfig
             && BulletsPrompt == other.BulletsPrompt
             && EmailPrompt == other.EmailPrompt
             && CustomPrompt == other.CustomPrompt
+            && PromptBackup == other.PromptBackup
             && OverlayAnchor == other.OverlayAnchor
             && SoundEnabled == other.SoundEnabled
             && OnboardingCompleted == other.OnboardingCompleted
@@ -247,6 +258,7 @@ public sealed record BlurtConfig
         hash.Add(BulletsPrompt);
         hash.Add(EmailPrompt);
         hash.Add(CustomPrompt);
+        hash.Add(PromptBackup);
         hash.Add(OverlayAnchor);
         hash.Add(SoundEnabled);
         hash.Add(OnboardingCompleted);
