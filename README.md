@@ -113,11 +113,24 @@ A short guided setup walks you through:
    manual install.
 4. **Hotkeys** — review and remap the three bindings.
 
+After setup, a short **animated tutorial** teaches the gestures — push-to-talk, the
+three triggers, and the Flex tap/hold modes — illustrated with the very status pill
+you'll see in use. Replay it any time from the tray (**How to use Blurt…**).
+
+<p align="center">
+  <img src="docs/assets/onboarding-tutorial.png" width="49%" alt="Onboarding tutorial: push to talk" />
+  <img src="docs/assets/onboarding-tutorial-flex.png" width="49%" alt="Onboarding tutorial: Flex tap-to-switch modes" />
+</p>
+
 After that, Blurt runs silently in the tray.
 
 ## Configuration
 
 Everything is in the **Settings** window (right-click the tray icon → Settings):
+
+<p align="center">
+  <img src="docs/assets/settings.png" width="70%" alt="Blurt Settings window" />
+</p>
 
 - **Privacy tier** — the primary control (see [Privacy](#privacy--own-your-voice)
   above): pick how much leaves your machine, and it sets transcription and
