@@ -27,45 +27,80 @@
                 <Border Style="{StaticResource Card}">
                     <StackPanel>
                         <TextBlock Style="{StaticResource GroupHeader}" Text="Transcription" />
+
+                        <!-- Privacy tier (issue 27): the primary control, framed by what
+                             leaves the machine rather than the two technical axes it maps
+                             onto. Selecting a tier sets the transcription Source and the
+                             refinement Provider together (Core's PrivacyTiers.SettingsFor);
+                             a non-standard combo set by hand below shows as "Custom". Pur
+                             stays zero-network regardless — this governs the refined modes. -->
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="150" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Source" />
-                            <ComboBox x:Name="TranscriptionSourceBox" Grid.Column="1" />
+                            <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Privacy" />
+                            <ComboBox x:Name="PrivacyTierBox" Grid.Column="1"
+                                      SelectionChanged="OnPrivacyTierChanged" />
                         </Grid>
-                        <Grid Margin="0,10,0,0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="150" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Local model" />
-                            <ComboBox x:Name="ModelSizeBox" Grid.Column="1"
-                                      SelectionChanged="OnModelSelectionChanged" />
-                        </Grid>
-                        <!-- Per-selection manual-install guidance (issue 18): the exact file,
-                             a working link, and the target folder, all derived from whatever
-                             model is selected — so a hand install matches what Blurt loads.
-                             Populated in OnModelSelectionChanged from the selected WhisperModel. -->
-                        <TextBlock x:Name="ModelDownloadHint"
+                        <!-- Plain-language "what leaves this PC" line, set per tier. -->
+                        <TextBlock x:Name="PrivacyHint"
                                    Style="{StaticResource Hint}"
-                                   Margin="150,8,0,0" />
-                        <!-- Copy affordances (issue 25): the corporate-proxy flow is a
-                             hand install, so the URL and target folder must be copyable
-                             rather than retyped from the hint above. -->
-                        <StackPanel Orientation="Horizontal" Margin="150,6,0,0">
-                            <Button Content="Copy link"
-                                    Style="{StaticResource LinkButton}"
-                                    Click="OnCopyModelLink" />
-                            <Button Content="Copy folder"
-                                    Style="{StaticResource LinkButton}"
-                                    Margin="14,0,0,0"
-                                    Click="OnCopyModelFolder" />
+                                   Margin="150,6,0,0" />
+
+                        <!-- Advanced disclosure: the underlying transcription source and
+                             local model. Hidden by default — the tier above is enough for
+                             the common case; power users reveal it to override (which then
+                             shows the tier as "Custom"). -->
+                        <CheckBox x:Name="ShowAdvancedTranscriptionBox"
+                                  Margin="150,12,0,0"
+                                  Content="Advanced: transcription source &amp; local model"
+                                  Checked="OnToggleAdvancedTranscription"
+                                  Unchecked="OnToggleAdvancedTranscription" />
+                        <StackPanel x:Name="AdvancedTranscriptionPanel"
+                                    Visibility="Collapsed"
+                                    Margin="0,10,0,0">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="150" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Source" />
+                                <ComboBox x:Name="TranscriptionSourceBox" Grid.Column="1"
+                                          SelectionChanged="OnTranscriptionSourceChanged" />
+                            </Grid>
+                            <Grid Margin="0,10,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="150" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Local model" />
+                                <ComboBox x:Name="ModelSizeBox" Grid.Column="1"
+                                          SelectionChanged="OnModelSelectionChanged" />
+                            </Grid>
+                            <!-- Per-selection manual-install guidance (issue 18): the exact file,
+                                 a working link, and the target folder, all derived from whatever
+                                 model is selected — so a hand install matches what Blurt loads.
+                                 Populated in OnModelSelectionChanged from the selected WhisperModel. -->
+                            <TextBlock x:Name="ModelDownloadHint"
+                                       Style="{StaticResource Hint}"
+                                       Margin="150,8,0,0" />
+                            <!-- Copy affordances (issue 25): the corporate-proxy flow is a
+                                 hand install, so the URL and target folder must be copyable
+                                 rather than retyped from the hint above. -->
+                            <StackPanel Orientation="Horizontal" Margin="150,6,0,0">
+                                <Button Content="Copy link"
+                                        Style="{StaticResource LinkButton}"
+                                        Click="OnCopyModelLink" />
+                                <Button Content="Copy folder"
+                                        Style="{StaticResource LinkButton}"
+                                        Margin="14,0,0,0"
+                                        Click="OnCopyModelFolder" />
+                            </StackPanel>
+                            <TextBlock Style="{StaticResource Hint}"
+                                       Margin="150,4,0,0"
+                                       Text="The source applies from the next dictation (Pur always stays local/offline). Changing the local model takes effect after a restart." />
                         </StackPanel>
-                        <TextBlock Style="{StaticResource Hint}"
-                                   Margin="150,4,0,0"
-                                   Text="The source applies from the next dictation (Pur always stays local/offline). Changing the local model takes effect after a restart." />
                     </StackPanel>
                 </Border>
 
@@ -216,6 +251,20 @@
                         <CheckBox x:Name="SoundEnabledBox"
                                   Margin="0,14,0,0"
                                   Content="Play a sound on record start/stop" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Startup: per-user auto-start with Windows (no admin). The Run-key
+                     presence is the source of truth — the box reflects the registry on
+                     load and writes/removes it on save (WindowsStartup). -->
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource GroupHeader}" Text="Startup" />
+                        <CheckBox x:Name="StartWithWindowsBox"
+                                  Content="Start Blurt when Windows starts" />
+                        <TextBlock Style="{StaticResource Hint}"
+                                   Margin="0,6,0,0"
+                                   Text="Launches Blurt to the tray at sign-in. Per-user, no admin needed. If you move the Blurt folder, re-toggle this so it points at the new location." />
                     </StackPanel>
                 </Border>
 

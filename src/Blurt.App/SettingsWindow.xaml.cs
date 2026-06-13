@@ -29,6 +29,15 @@ internal partial class SettingsWindow : Window
     private readonly BlurtConfig _original;
     private readonly bool _hadApiKey;
 
+    // Privacy-tier wiring (issue 27). The tier combo and the two underlying axes
+    // (transcription source, refinement provider) drive each other, so a guard
+    // breaks the SelectionChanged feedback loop: while we apply a tier (or sync
+    // the tier back from the axes) the opposite direction is suppressed. _loaded
+    // gates the new handlers off during construction, where SelectionChanged fires
+    // before the fields hold real values.
+    private bool _loaded;
+    private bool _syncingTier;
+
     // Per-provider endpoint memory (issue 24): which provider's values currently
     // sit in the Base URL/Model fields (null until LoadFromConfig has run — the
     // provider combo fires SelectionChanged during initialization), plus each
@@ -56,6 +65,10 @@ internal partial class SettingsWindow : Window
 
         PopulateChoices();
         LoadFromConfig(_original);
+
+        // Construction done: SelectionChanged from real user edits should now
+        // re-wire the tier ⇄ axes relationship (LoadFromConfig set it up directly).
+        _loaded = true;
     }
 
     // One microphone-combo entry. A null DeviceName is the "(Windows default)" item
@@ -70,6 +83,12 @@ internal partial class SettingsWindow : Window
     // mapping back on save is a straight cast.
     private void PopulateChoices()
     {
+        // Privacy tier (issue 27): the guided primary control. "Custom" (null tier)
+        // is the display state for a non-standard advanced combo, not a setting the
+        // user applies — selecting it is a no-op (OnPrivacyTierChanged ignores it).
+        PrivacyTierBox.DisplayMemberPath = nameof(TierChoice.Label);
+        PrivacyTierBox.ItemsSource = TierChoices;
+
         TranscriptionSourceBox.ItemsSource = new[] { TranscriptionMode.Local, TranscriptionMode.Online };
         OverlayAnchorBox.ItemsSource = new[] { OverlayAnchor.MousePointer, OverlayAnchor.BottomCenter };
         // The two local models offered (issue 18): the small default and the
@@ -115,6 +134,21 @@ internal partial class SettingsWindow : Window
     /// maps straight back to the <see cref="RefinementProvider"/> on save.</summary>
     private sealed record ProviderChoice(string Label, RefinementProvider Value);
 
+    /// <summary>A label/tier pair for the privacy combo (issue 27). A null
+    /// <see cref="Tier"/> is the "Custom" entry — the display state for an advanced
+    /// combo that no tier represents; it is never applied as a setting.</summary>
+    private sealed record TierChoice(string Label, PrivacyTier? Tier);
+
+    // The tiers offered, in privacy order, plus the Custom display entry last. The
+    // labels are framed by what leaves the machine, matching the per-tier hint.
+    private static readonly TierChoice[] TierChoices =
+    [
+        new("Fully local (offline)", PrivacyTier.FullyLocal),
+        new("Voice stays home (cloud refine)", PrivacyTier.VoiceStaysHome),
+        new("Full cloud", PrivacyTier.FullCloud),
+        new("Custom", null),
+    ];
+
     private void LoadFromConfig(BlurtConfig config)
     {
         TranscriptionSourceBox.SelectedItem = config.Transcription;
@@ -151,7 +185,23 @@ internal partial class SettingsWindow : Window
         OverlayAnchorBox.SelectedItem = config.OverlayAnchor;
         SoundEnabledBox.IsChecked = config.SoundEnabled;
 
+        // Auto-start reflects the actual Run-key state, not config — the registry
+        // is the source of truth (the user may toggle it via Windows settings too).
+        StartWithWindowsBox.IsChecked = WindowsStartup.IsEnabled();
+
         SelectConfiguredMicrophone(config);
+
+        // Derive the privacy tier from the loaded axes (issue 27). Done directly
+        // (not via the SelectionChanged path) because _loaded is still false here;
+        // selecting the tier item now would otherwise no-op. A loaded combo that
+        // matches no tier ("Custom") reveals the advanced controls so the user can
+        // see what it actually is.
+        SelectTierFromCurrentAxes();
+        UpdatePrivacyHint();
+        if (CurrentAxesTier() is null)
+        {
+            ShowAdvancedTranscriptionBox.IsChecked = true;   // fires the toggle → panel visible
+        }
     }
 
     // Select the microphone matching the config. FollowDefault → the "(Windows
@@ -303,6 +353,7 @@ internal partial class SettingsWindow : Window
         }
 
         UpdateProviderHint();
+        SyncPrivacyTierDisplay();   // a manual provider change may move us to/from a tier (issue 27)
     }
 
     // The endpoint currently shown in the Base URL/Model fields.
@@ -320,6 +371,89 @@ internal partial class SettingsWindow : Window
         ProviderHint.Text = provider == RefinementProvider.LocalOpenAiCompatible
             ? "Local endpoint (e.g. Ollama): set the base URL to http://<host>:11434/v1 and leave the API key empty. The stored key is kept but not sent."
             : "OpenAI cloud: base URL https://api.openai.com/v1 and a stored API key are used.";
+    }
+
+    // Privacy tier → axes (issue 27). Selecting a real tier sets both the
+    // transcription source and the refinement provider via Core's mapping; the
+    // resulting SelectionChanged on those combos is suppressed (_syncingTier) so it
+    // doesn't bounce back and re-pick the tier. Selecting "Custom" (null tier) is a
+    // no-op — it's only ever shown, set by SyncPrivacyTierDisplay, never applied.
+    private void OnPrivacyTierChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_loaded || _syncingTier)
+            return;
+
+        if (PrivacyTierBox.SelectedItem is not TierChoice { Tier: { } tier })
+            return;
+
+        var (transcription, refinement) = PrivacyTiers.SettingsFor(tier);
+
+        _syncingTier = true;
+        TranscriptionSourceBox.SelectedItem = transcription;
+        // Setting SelectedValue still runs OnRefinementProviderChanged's endpoint
+        // swap (issue 24); only its tier re-sync is guarded out here.
+        RefinementProviderBox.SelectedValue = refinement;
+        _syncingTier = false;
+
+        UpdatePrivacyHint();
+    }
+
+    // Axes → privacy tier (issue 27): a manual change to the source or provider
+    // re-derives which tier (if any) the current combo is, so the combo follows or
+    // falls to "Custom". Guarded so a tier-driven change doesn't re-enter.
+    private void OnTranscriptionSourceChanged(object sender, SelectionChangedEventArgs e)
+        => SyncPrivacyTierDisplay();
+
+    private void SyncPrivacyTierDisplay()
+    {
+        if (!_loaded || _syncingTier)
+            return;
+
+        _syncingTier = true;
+        SelectTierFromCurrentAxes();
+        _syncingTier = false;
+
+        UpdatePrivacyHint();
+    }
+
+    // Point the tier combo at whatever the current source + provider classify as,
+    // or the "Custom" entry (null tier) when no tier matches.
+    private void SelectTierFromCurrentAxes()
+    {
+        var tier = CurrentAxesTier();
+        PrivacyTierBox.SelectedItem = System.Array.Find(TierChoices, c => c.Tier == tier);
+    }
+
+    // The tier the currently-selected source + provider correspond to, or null
+    // ("Custom") for a non-standard combo.
+    private PrivacyTier? CurrentAxesTier() =>
+        TranscriptionSourceBox.SelectedItem is TranscriptionMode transcription
+        && RefinementProviderBox.SelectedValue is RefinementProvider refinement
+            ? PrivacyTiers.Classify(transcription, refinement)
+            : null;
+
+    private void UpdatePrivacyHint() =>
+        PrivacyHint.Text = (PrivacyTierBox.SelectedItem as TierChoice)?.Tier switch
+        {
+            PrivacyTier.FullyLocal =>
+                "Your voice and the transcript both stay on this PC — nothing is sent to the cloud (fully offline).",
+            PrivacyTier.VoiceStaysHome =>
+                "Your voice stays on this PC; only the transcribed text is sent to OpenAI for refinement. Needs the API key below.",
+            PrivacyTier.FullCloud =>
+                "Your voice and the text are both sent to OpenAI (fastest, best quality). Needs the API key below.",
+            _ =>
+                "Custom combination — set by the advanced transcription source and the refinement provider below.",
+        };
+
+    // Advanced disclosure toggle (issue 27): reveal/hide the underlying source and
+    // local-model controls. Null-guarded for the parse-time order.
+    private void OnToggleAdvancedTranscription(object sender, RoutedEventArgs e)
+    {
+        if (AdvancedTranscriptionPanel is null)
+            return;
+
+        AdvancedTranscriptionPanel.Visibility =
+            ShowAdvancedTranscriptionBox.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void OnSave(object sender, RoutedEventArgs e)
@@ -343,6 +477,10 @@ internal partial class SettingsWindow : Window
         {
             _store.SaveApiKey(typedKey);
         }
+
+        // Apply auto-start directly to the Run key (its presence is the source of
+        // truth; nothing about it lives in BlurtConfig).
+        WindowsStartup.SetEnabled(StartWithWindowsBox.IsChecked == true);
 
         SavedConfig = config;
         Close();   // modeless window: just close it. The Closed handler applies the
