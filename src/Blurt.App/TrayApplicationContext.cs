@@ -247,7 +247,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         var audio = _recorder.Stop();
         PlaySound(start: false);   // optional stop beep at release
-        _ = RefineAndInjectAsync(audio, RefinementPrompts.English);   // fire-and-forget; outcome surfaces as a balloon only when notable
+        _ = RefineAndInjectAsync(audio, RefinementPrompts.English, StatusLabel.Translating);   // fire-and-forget; outcome surfaces as a balloon only when notable
     }
 
     // Flex-slot push-to-talk (issue 07 + 11). Down starts recording and stamps the
@@ -294,15 +294,19 @@ internal sealed class TrayApplicationContext : ApplicationContext
         if (_tapHoldClassifier.Classify(held) == TapOrHold.Tap)
         {
             // Tap: the recording was never meant as speech — throw it away and
-            // advance the mode, surfacing the new one in the tray. No transcription,
-            // so the overlay goes straight back to idle (no "transcribing" pill).
-            // Discard (not Stop) so the UI thread never waits on the device
-            // draining a take we're binning — the cycle must feel instant (issue 21).
+            // advance the mode. Discard (not Stop) so the UI thread never waits on
+            // the device draining a take we're binning — the cycle must feel
+            // instant (issue 21).
             _recorder.Discard();
-            ReturnToIdle();
             var mode = _flexSlotCycle.Cycle();
+            SetTrayState(TrayState.Idle);   // no transcription; tray rests
             _trayIcon.Text = $"{AppInfo.Name} - {mode}";
-            _notifier.Notify($"Flex slot: {mode}", NoticeLevel.Info);
+
+            // Feedback goes through the overlay pill, NOT a tray balloon: Windows
+            // throttles successive balloons, so a quick second tap showed no change
+            // and the cycle felt stuck until the old balloon timed out. The overlay
+            // updates instantly and per-mode distinctly (issue: flex feedback).
+            _overlay.FlashMode(mode);
             return;
         }
 
@@ -328,7 +332,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
         else
         {
-            _ = RefineAndInjectAsync(audio, prompt);   // Bullets / configured Custom
+            // Bullets and Custom both refine, but the status pill names which.
+            var refiningLabel = currentMode == FlexSlotMode.Bullets
+                ? StatusLabel.Bulleting
+                : StatusLabel.Refining;
+            _ = RefineAndInjectAsync(audio, prompt, refiningLabel);   // Bullets / configured Custom
         }
     }
 
@@ -336,7 +344,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         // This method starts on the UI thread (the hook delivers events there),
         // so every await resumes on it — balloon calls below are safe.
-        EnterProcessing();   // "transcribing" pill + amber tray for the decode
+        // Verbatim/Pur is always local (zeroNetwork below), so the status says so.
+        EnterProcessing(StatusLabel.Transcribing(local: true));
         try
         {
             // Provisioning (first-run download) can fail on a blocked network;
@@ -400,18 +409,22 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         var audio = _recorder.Stop();
         PlaySound(start: false);   // optional stop beep at release
-        _ = RefineAndInjectAsync(audio, RefinementPrompts.Fix);   // fire-and-forget; outcome surfaces as a balloon only when notable
+        _ = RefineAndInjectAsync(audio, RefinementPrompts.Fix, StatusLabel.Fixing);   // fire-and-forget; outcome surfaces as a balloon only when notable
     }
 
     // Shared refined-dictation path: transcribe locally, then refine the text
     // through the OpenAI-compatible endpoint with the given <paramref name="systemPrompt"/>
     // before injecting. Used by every LLM mode (Fix, English, Bullets, Custom) —
     // only the prompt differs. Only text crosses the network, never audio.
-    private async Task RefineAndInjectAsync(Stream audio, string systemPrompt)
+    private async Task RefineAndInjectAsync(Stream audio, string systemPrompt, string refiningLabel)
     {
         // Starts on the UI thread (the hook delivers events there), so every
         // await resumes on it — balloon calls below are safe.
-        EnterProcessing();   // "transcribing" pill + amber tray while we transcribe+refine
+        // Name the transcription that's about to run: local whisper.cpp vs the
+        // cloud API, per the configured source (Pur is the always-local path and
+        // goes through DictateAsync, not here).
+        var transcribingLocally = _settings.Load().Transcription == TranscriptionMode.Local;
+        EnterProcessing(StatusLabel.Transcribing(transcribingLocally));
         try
         {
             // Refined modes already cross the network for the LLM, so the
@@ -439,8 +452,15 @@ internal sealed class TrayApplicationContext : ApplicationContext
             var pipeline = new DictationPipeline(
                 new OffloadedTranscriber(transcriber),
                 _textInjector,
-                refine: (text, ct) => refiner.RefineAsync(text, systemPrompt, ct),
-                onResult: _recentDictations.Add);   // issue 26: recoverable history
+                refine: (text, ct) =>
+                {
+                    // Transcription is done; the pill now names the refine step it's
+                    // actually running (fixing / bulleting / translating / refining).
+                    _overlay.UpdateActive(refiningLabel, OverlayState.Transcribing);
+                    return refiner.RefineAsync(text, systemPrompt, ct);
+                },
+                onResult: _recentDictations.Add,   // issue 26: recoverable history
+                transcribeFallback: BuildLocalFallback());   // issue 30: Online → local when offline
 
             var outcome = await pipeline.RunAsync(audio);
 
@@ -470,16 +490,18 @@ internal sealed class TrayApplicationContext : ApplicationContext
     // start beep. Called from each trigger's Down branch after recording starts.
     private void EnterRecording()
     {
-        _overlay.Show(OverlayState.Listening);
+        _overlay.ShowActive(StatusLabel.Listening, OverlayState.Listening);
         SetTrayState(TrayState.Recording);
         PlaySound(start: true);
     }
 
-    // Enter the processing state: pill shows "transcribing", tray turns amber.
-    // Called at the start of the async transcribe/refine path after the take stops.
-    private void EnterProcessing()
+    // Enter the processing state: the pill names the transcription that's running
+    // (Core's StatusLabel decides "transcribing" vs "transcribing locally"), tray
+    // turns amber. Called at the start of the async transcribe/refine path after
+    // the take stops; the refine step later updates the label to its own verb.
+    private void EnterProcessing(string transcribingLabel)
     {
-        _overlay.Show(OverlayState.Transcribing);
+        _overlay.ShowActive(transcribingLabel, OverlayState.Transcribing);
         SetTrayState(TrayState.Processing);
     }
 
@@ -552,6 +574,35 @@ internal sealed class TrayApplicationContext : ApplicationContext
             local: async () => new OffloadedTranscriber(await _transcriber.GetAsync()),
             online: () => new OpenAiWhisper(
                 _httpClient, OpenAiTranscriptionBaseUrl, _settings.LoadApiKey() ?? ""));
+
+    // Offline fail-soft for Online transcription (issue 30). If the network call
+    // fails mid-dictation, the pipeline retries through this delegate so the
+    // dictation still lands instead of being lost — mirroring the refinement
+    // RefinedOffline fail-soft. Deliberately uses *any already-installed* model
+    // (never a download): an Online user may have a model configured that was
+    // never fetched (e.g. large-v3-turbo with only small on disk), and downloading
+    // it offline is impossible. Returns null when no model is installed at all,
+    // in which case the pipeline stays fail-soft and reports TranscriptionFailed.
+    // A fresh LocalWhisper per fallback is fine on this rare offline path.
+    private Func<Stream, CancellationToken, Task<string>>? BuildLocalFallback()
+    {
+        var provisioner = new ModelProvisioner(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            new GgmlModelDownloader());
+        var modelPath = provisioner.FindInstalledModelPath(_settings.Load().WhisperModel);
+        if (modelPath is null)
+        {
+            return null;
+        }
+
+        return async (wav, ct) =>
+        {
+            // Offloaded like the primary so the local decode never blocks the UI
+            // thread; disposed once the one-off offline transcription is done.
+            using var local = new LocalWhisper(modelPath);
+            return await new OffloadedTranscriber(local).TranscribeAsync(wav, ct);
+        };
+    }
 
     private async Task<LocalWhisper> ProvisionTranscriberAsync()
     {

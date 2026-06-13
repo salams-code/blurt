@@ -35,6 +35,76 @@ public static class OverlayText
     };
 }
 
+/// <summary>
+/// Pure mapping from a <see cref="FlexSlotMode"/> to how the overlay pill should
+/// announce it on a tap-cycle. The tap's only feedback used to be a tray balloon,
+/// which Windows throttles — so a quick second tap showed no change and the cycle
+/// felt stuck. The overlay pill updates instantly and repeatedly instead, and each
+/// mode gets a <em>distinct</em> label and dot colour so the mode you just cycled
+/// to is unambiguous at a glance (not a single generic pill). Kept WPF-free so the
+/// colour choice is unit-testable; the App paints a dot in that RGB.
+/// </summary>
+public static class FlexSlotOverlay
+{
+    /// <summary>The pill label for <paramref name="mode"/> — the mode's name, with
+    /// a leading bullet for Bullets so the three read distinctly.</summary>
+    public static string Label(FlexSlotMode mode) => mode switch
+    {
+        FlexSlotMode.Pur => "Pur",
+        FlexSlotMode.Bullets => "• Bullets",
+        FlexSlotMode.Custom => "Custom",
+        _ => mode.ToString(),
+    };
+
+    /// <summary>
+    /// The status-dot colour for <paramref name="mode"/>, distinct per mode so the
+    /// colour alone disambiguates: green = Pur (the offline/verbatim mode), blue =
+    /// Bullets, purple = Custom. Deliberately none of the status colours
+    /// (red/amber) and never the idle grey, so a mode flash never looks like a
+    /// recording/processing pill.
+    /// </summary>
+    public static (byte R, byte G, byte B) Dot(FlexSlotMode mode) => mode switch
+    {
+        FlexSlotMode.Pur => (40, 167, 69),       // green
+        FlexSlotMode.Bullets => (13, 110, 253),  // blue
+        FlexSlotMode.Custom => (111, 66, 193),   // purple
+        _ => (128, 128, 128),                    // grey (unknown — should not happen)
+    };
+}
+
+/// <summary>
+/// The wording for the overlay's <em>live activity</em> — what the app is doing
+/// right now, so the pill reads as a precise status rather than a generic
+/// "busy". One source of truth for every phase's verb. Labels carry no trailing
+/// "…": the overlay animates the ellipsis itself, so the base text stays put while
+/// the dots cycle. Lowercase to match the pill's existing voice ("listening").
+/// </summary>
+public static class StatusLabel
+{
+    /// <summary>Recording in progress.</summary>
+    public const string Listening = "listening";
+
+    /// <summary>
+    /// Transcribing the take. <paramref name="local"/> distinguishes on-device
+    /// whisper.cpp ("transcribing locally") from the cloud API ("transcribing"),
+    /// so the user can see whether their voice is leaving the machine — Pur is
+    /// always local by contract, the cloud tiers say so explicitly.
+    /// </summary>
+    public static string Transcribing(bool local) => local ? "transcribing locally" : "transcribing";
+
+    /// <summary>Refining via the Fix mode (German cleanup).</summary>
+    public const string Fixing = "fixing";
+
+    /// <summary>Refining via the Bullets mode (reformat to bullet points).</summary>
+    public const string Bulleting = "bulleting";
+
+    /// <summary>Refining via the English mode (translate to English).</summary>
+    public const string Translating = "translating";
+
+    /// <summary>Refining via a user-defined Custom prompt.</summary>
+    public const string Refining = "refining";
+}
+
 /// <summary>A point in screen coordinates, kept WPF-free for pure placement logic.</summary>
 public readonly record struct OverlayPoint(double X, double Y);
 

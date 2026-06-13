@@ -85,6 +85,36 @@ public sealed class ModelProvisioner
     public bool IsModelPresent(WhisperModel model) => File.Exists(ResolvePath(model));
 
     /// <summary>
+    /// Path to an already-installed model to use as an offline fallback when the
+    /// configured (online or local) transcription can't run (issue 30) — the
+    /// configured <paramref name="preferred"/> model if it is on disk, else any
+    /// other <c>ggml-*.bin</c> in the models directory, else null when nothing is
+    /// installed. Never downloads: the whole point is to keep a dictation alive
+    /// offline even when the configured model was never fetched (e.g. an Online
+    /// user with large-v3-turbo configured but only small on disk). A null return
+    /// means no offline fallback is possible — the caller stays fail-soft.
+    /// </summary>
+    public string? FindInstalledModelPath(WhisperModel preferred)
+    {
+        if (IsModelPresent(preferred))
+        {
+            return ResolvePath(preferred);
+        }
+
+        if (!Directory.Exists(_modelsDirectory))
+        {
+            return null;
+        }
+
+        // Deterministic pick among whatever else is installed, so the fallback
+        // doesn't depend on filesystem enumeration order.
+        return Directory
+            .EnumerateFiles(_modelsDirectory, "ggml-*.bin")
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault();
+    }
+
+    /// <summary>
     /// Makes sure the model file is present, downloading it only on first run
     /// (i.e. when the file is missing), and returns its path. The models
     /// directory is created up front so the downloader can write straight to

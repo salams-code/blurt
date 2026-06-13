@@ -99,6 +99,75 @@ public class ModelProvisionerTests
     }
 
     [Fact]
+    public void FindInstalledModelPath_prefers_the_configured_model_when_it_is_present()
+    {
+        // Issue 30 offline fallback: when the configured model is on disk, use it.
+        var appDataRoot = Directory.CreateTempSubdirectory("blurt-test-").FullName;
+        try
+        {
+            var provisioner = new ModelProvisioner(appDataRoot, new RecordingDownloader());
+            Install(provisioner, WhisperModel.Default);
+            Install(provisioner, WhisperModel.Turbo);
+
+            var path = provisioner.FindInstalledModelPath(WhisperModel.Turbo);
+
+            Assert.Equal(provisioner.ResolvePath(WhisperModel.Turbo), path);
+        }
+        finally
+        {
+            Directory.Delete(appDataRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void FindInstalledModelPath_falls_back_to_any_installed_model_when_the_configured_one_is_absent()
+    {
+        // The user's real case: Online source, configured WhisperModel is
+        // large-v3-turbo (NOT on disk), only small was ever downloaded. Offline,
+        // the fallback must use whatever is installed rather than attempt an
+        // impossible download of the configured model.
+        var appDataRoot = Directory.CreateTempSubdirectory("blurt-test-").FullName;
+        try
+        {
+            var provisioner = new ModelProvisioner(appDataRoot, new RecordingDownloader());
+            Install(provisioner, WhisperModel.Default);   // only small is present
+
+            var path = provisioner.FindInstalledModelPath(WhisperModel.Turbo);
+
+            Assert.Equal(provisioner.ResolvePath(WhisperModel.Default), path);
+        }
+        finally
+        {
+            Directory.Delete(appDataRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void FindInstalledModelPath_returns_null_when_no_model_is_installed()
+    {
+        // Nothing on disk → no offline fallback is possible; the caller keeps the
+        // dictation fail-soft (TranscriptionFailed) rather than forcing a download.
+        var appDataRoot = Directory.CreateTempSubdirectory("blurt-test-").FullName;
+        try
+        {
+            var provisioner = new ModelProvisioner(appDataRoot, new RecordingDownloader());
+
+            Assert.Null(provisioner.FindInstalledModelPath(WhisperModel.Turbo));
+        }
+        finally
+        {
+            Directory.Delete(appDataRoot, recursive: true);
+        }
+    }
+
+    private static void Install(ModelProvisioner provisioner, WhisperModel model)
+    {
+        var path = provisioner.ResolvePath(model);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllBytes(path, [0x01]);   // stand-in for a downloaded model file
+    }
+
+    [Fact]
     public void IsModelPresent_reflects_whether_the_model_file_exists()
     {
         // The UI needs this before EnsureModel so it can announce a first-run

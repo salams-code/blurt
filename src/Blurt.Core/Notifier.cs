@@ -60,6 +60,8 @@ public static class DictationNotices
             new DictationNotice("(no speech detected)", NoticeLevel.Info),
         DictationOutcome.TranscriptionFailed =>
             new DictationNotice("Transcription failed.", NoticeLevel.Error),
+        DictationOutcome.TranscribedOffline =>
+            new DictationNotice("Cloud transcription offline — transcribed locally.", NoticeLevel.Warning),
         DictationOutcome.RefinedOffline =>
             new DictationNotice("Refinement offline — raw text inserted.", NoticeLevel.Warning),
         DictationOutcome.InjectionBlocked =>

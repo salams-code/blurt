@@ -17,6 +17,15 @@ public enum DictationOutcome
     TranscriptionFailed,
 
     /// <summary>
+    /// Online transcription failed (e.g. the network was down), so the audio was
+    /// transcribed by a local whisper model instead and the result injected.
+    /// Fail-soft (issue 30): Full Cloud degrades gracefully offline rather than
+    /// losing the dictation; the caller surfaces a "transcribed locally (offline)"
+    /// notice. Mirrors <see cref="RefinedOffline"/> for the transcription step.
+    /// </summary>
+    TranscribedOffline,
+
+    /// <summary>
     /// The refiner endpoint was unreachable (or otherwise failed), so the raw
     /// transcript was injected instead of the refined text. Fail-soft: the
     /// dictation still lands at the cursor; the caller surfaces a "refinement
@@ -49,17 +58,20 @@ public sealed class DictationPipeline
     private readonly ITextInjector _injector;
     private readonly Func<string, CancellationToken, Task<string>>? _refine;
     private readonly Action<string>? _onResult;
+    private readonly Func<Stream, CancellationToken, Task<string>>? _transcribeFallback;
 
     public DictationPipeline(
         ITranscriber transcriber,
         ITextInjector injector,
         Func<string, CancellationToken, Task<string>>? refine = null,
-        Action<string>? onResult = null)
+        Action<string>? onResult = null,
+        Func<Stream, CancellationToken, Task<string>>? transcribeFallback = null)
     {
         _transcriber = transcriber;
         _injector = injector;
         _refine = refine;
         _onResult = onResult;
+        _transcribeFallback = transcribeFallback;
     }
 
     /// <summary>
@@ -72,6 +84,7 @@ public sealed class DictationPipeline
     public async Task<DictationOutcome> RunAsync(Stream wavAudio, CancellationToken ct = default)
     {
         string text;
+        var transcribedOffline = false;
         try
         {
             text = await _transcriber.TranscribeAsync(wavAudio, ct);
@@ -79,8 +92,31 @@ public sealed class DictationPipeline
         catch
         {
             // Fail-soft (design §10): a failed transcription is a notice, not a
-            // crash. The caller decides how loudly to surface it.
-            return DictationOutcome.TranscriptionFailed;
+            // crash. Issue 30: when an offline fallback is wired (Online source),
+            // transcribe locally instead of losing the dictation — mirroring the
+            // refinement RefinedOffline fail-soft below. With no fallback (or one
+            // that also fails) this stays a TranscriptionFailed notice.
+            if (_transcribeFallback is null)
+            {
+                return DictationOutcome.TranscriptionFailed;
+            }
+
+            try
+            {
+                // The primary attempt may have read the stream to its end; rewind
+                // so the local model sees the whole utterance, not zero bytes.
+                if (wavAudio.CanSeek)
+                {
+                    wavAudio.Position = 0;
+                }
+
+                text = await _transcribeFallback(wavAudio, ct);
+                transcribedOffline = true;
+            }
+            catch
+            {
+                return DictationOutcome.TranscriptionFailed;
+            }
         }
 
         // A non-speech transcript is silence regardless of refinement — guard
@@ -124,6 +160,14 @@ public sealed class DictationPipeline
         if (!injected)
         {
             return DictationOutcome.InjectionBlocked;
+        }
+
+        // Precedence: a local transcription fallback (issue 30) is the more
+        // fundamental degradation and implies the network was down — so it
+        // dominates RefinedOffline, which is almost always also true offline.
+        if (transcribedOffline)
+        {
+            return DictationOutcome.TranscribedOffline;
         }
 
         return refinedOffline ? DictationOutcome.RefinedOffline : DictationOutcome.Injected;
