@@ -13,9 +13,8 @@ whatever application is focused.
 
 It is a **ground-up reimplementation** inspired by the macOS app
 `cmagnussen/blitztext-app` (Swift/SwiftUI + WhisperKit/CoreML, Apple-only — no
-code is reusable on Windows) and by the multi-output concept of
-comivoice.netlify.app ("same dictation, multiple outputs"). Only the *concept*
-carries over; this is a new codebase.
+code is reusable on Windows) and by the broader "same dictation, multiple
+outputs" idea. Only the *concept* carries over; this is a new codebase.
 
 Non-goals for v1 (explicitly out of scope): emoji mode, anger-defuser mode,
 fixed email/compact modes (covered by Custom), user accounts, backend server,
