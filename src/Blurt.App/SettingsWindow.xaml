@@ -250,11 +250,12 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Prompt backup (issue 38): see / copy / restore the snapshot a reset
-                     created. The status line says whether a backup is present; the
-                     read-only box shows its contents; Copy puts them on the clipboard;
-                     Restore loads them back into the prompt fields above (persisted on
-                     Save, so it takes effect on the next dictation). -->
+                <!-- Prompt backup (issue 38): see / copy / restore the prompts as they
+                     were before your last change (captured automatically on save by
+                     PromptBackupPolicy). The status line says whether a backup is
+                     present; the toggle shows/hides its contents; Copy puts them on the
+                     clipboard; Restore loads them back into the prompt fields above
+                     (persisted on Save, so it takes effect on the next dictation). -->
                 <Border Style="{StaticResource Card}">
                     <StackPanel>
                         <TextBlock Style="{StaticResource GroupHeader}" Text="Prompt backup" />

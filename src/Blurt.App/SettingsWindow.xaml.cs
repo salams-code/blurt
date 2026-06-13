@@ -474,6 +474,11 @@ internal partial class SettingsWindow : Window
     {
         var config = BuildConfigFromFields();
 
+        // Prompt backup (issue 38): on every save, capture the previously-saved prompts
+        // as the recoverable backup when the prompts changed (whether from an edit or a
+        // reset); a save that left the prompts untouched keeps the existing backup.
+        config = config with { PromptBackup = PromptBackupPolicy.OnSave(_original, config) };
+
         var validation = SettingsValidation.Validate(config);
         if (!validation.IsValid)
         {
@@ -502,22 +507,20 @@ internal partial class SettingsWindow : Window
                    // illegal to set on a Show()-modeless window and would crash).
     }
 
-    // Reset every editable prompt to its shipped default (issue 37). The decision —
-    // back up the current prompts into the single slot, then apply the defaults, and
-    // no-op when nothing is customised — lives in Core's PromptReset; this just feeds
-    // it the prompts currently in the fields and reflects the result back. The backup
-    // and the defaults persist together on Save; the restore UI is issue 38.
+    // Reset every editable prompt to its shipped default (issue 37). Pure field
+    // replacement via Core's PromptReset; it does not touch the backup. The backup is
+    // recorded when the user saves — the save sees the prompts changed from their
+    // previous values and captures them (PromptBackupPolicy), so a reset is recoverable
+    // exactly like any other prompt change.
     private void OnResetPrompts(object sender, RoutedEventArgs e)
     {
         var reset = PromptReset.Reset(BuildConfigFromFields());
 
-        _promptBackup = reset.PromptBackup;
         FixPromptBox.Text = reset.FixPrompt;
         EnglishPromptBox.Text = reset.EnglishPrompt;
         BulletsPromptBox.Text = reset.BulletsPrompt;
         EmailPromptBox.Text = reset.EmailPrompt;
         CustomPromptBox.Text = reset.CustomPrompt;
-        RefreshBackupView();   // issue 38: a reset just (re)created the backup
     }
 
     // Prompt-backup UI (issue 38): see / copy / restore the snapshot a reset created.
@@ -528,8 +531,8 @@ internal partial class SettingsWindow : Window
         var hasBackup = _promptBackup is not null;
 
         BackupStatusText.Text = hasBackup
-            ? "A backup of your previous prompts is available (from your last reset)."
-            : "No backup yet - use 'Reset prompts to defaults' to create one.";
+            ? "A backup of your previous prompts is available (from before your last change)."
+            : "No backup yet - it's saved automatically the next time you change your prompts.";
         BackupViewBox.Text = hasBackup ? PromptBackupText.Format(_promptBackup!) : "";
         // Keep the text collapsed by default (and re-collapse after a reset) so it
         // doesn't sit open in the way; the user expands it on demand.

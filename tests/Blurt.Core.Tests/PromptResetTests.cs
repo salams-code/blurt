@@ -4,15 +4,13 @@ using Xunit;
 namespace Blurt.Core.Tests;
 
 /// <summary>
-/// The non-destructive prompt reset behind issue 37: a reset returns every editable
-/// prompt to its shipped default, but first captures the current prompts into the
-/// single <see cref="BlurtConfig.PromptBackup"/> slot so the pre-reset state is
-/// always recoverable. There is no separate "Custom mode name" in Blurt, so the
-/// editable surface — and what these tests cover — is the five mode prompts.
+/// "Reset prompts to defaults" (issue 37): a pure field replacement that returns every
+/// editable prompt to its shipped default. The recoverable backup is no longer this
+/// type's job — it is captured at save time by <see cref="PromptBackupPolicy"/> — so a
+/// reset must not, by itself, write or clear <see cref="BlurtConfig.PromptBackup"/>.
 /// </summary>
 public class PromptResetTests
 {
-    // A config with every editable prompt customised away from its default.
     private static BlurtConfig Customised() => BlurtConfig.Default with
     {
         FixPrompt = "my fix",
@@ -35,50 +33,21 @@ public class PromptResetTests
     }
 
     [Fact]
-    public void Reset_backs_up_the_current_prompts_before_overwriting_them()
+    public void Reset_does_not_touch_the_backup_slot()
     {
-        var original = Customised();
+        // The backup is a save-time concern now (PromptBackupPolicy); resetting the
+        // prompts must neither create a backup nor clear an existing one.
+        var existing = new PromptSnapshot { FixPrompt = "kept" };
+        var config = Customised() with { PromptBackup = existing };
 
-        var reset = PromptReset.Reset(original);
+        var reset = PromptReset.Reset(config);
 
-        // The backup is the snapshot of what the prompts were just before the reset.
-        Assert.Equal(PromptSnapshot.From(original), reset.PromptBackup);
+        Assert.Equal(existing, reset.PromptBackup);
     }
 
     [Fact]
-    public void The_backup_fully_recovers_the_pre_reset_prompts()
+    public void Resetting_an_already_default_config_changes_nothing()
     {
-        // Non-destructive (criterion 3): applying the backup restores every prompt
-        // exactly — the seam the restore UI (issue 38) will use.
-        var original = Customised();
-        var reset = PromptReset.Reset(original);
-
-        var restored = reset.PromptBackup!.ApplyTo(reset);
-
-        Assert.Equal(original.FixPrompt, restored.FixPrompt);
-        Assert.Equal(original.EnglishPrompt, restored.EnglishPrompt);
-        Assert.Equal(original.BulletsPrompt, restored.BulletsPrompt);
-        Assert.Equal(original.EmailPrompt, restored.EmailPrompt);
-        Assert.Equal(original.CustomPrompt, restored.CustomPrompt);
-    }
-
-    [Fact]
-    public void Resetting_an_all_default_config_is_a_safe_no_op()
-    {
-        // Nothing customised → the reset changes nothing and records no backup.
         Assert.Equal(BlurtConfig.Default, PromptReset.Reset(BlurtConfig.Default));
-    }
-
-    [Fact]
-    public void A_redundant_reset_does_not_clobber_the_existing_backup()
-    {
-        // First reset backs up the user's customised prompts; the config is now all
-        // default. A second reset must be a no-op so it can't replace that real
-        // backup with a useless default snapshot — the recovery stays intact.
-        var first = PromptReset.Reset(Customised());
-        var second = PromptReset.Reset(first);
-
-        Assert.Equal(first, second);
-        Assert.Equal(first.PromptBackup, second.PromptBackup);
     }
 }
