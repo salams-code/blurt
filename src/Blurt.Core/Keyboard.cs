@@ -18,8 +18,13 @@ public enum KeyEdge
 /// <summary>A single raw key event as reported by the low-level keyboard hook.</summary>
 public readonly record struct KeyInput(int VirtualKeyCode, KeyEdge Edge);
 
-/// <summary>A recognised Blurt trigger event the app can act on.</summary>
-public readonly record struct TriggerEvent(TriggerKind Kind, KeyEdge Edge);
+/// <summary>
+/// A recognised Blurt trigger event the app can act on. <see cref="AlsoTranslate"/>
+/// is the per-dictation "also translate to English" modifier (issue 39): true when
+/// Shift was held as the trigger chord was pressed. Defaults to false so a plain
+/// trigger (and every caller written before the modifier) is unchanged.
+/// </summary>
+public readonly record struct TriggerEvent(TriggerKind Kind, KeyEdge Edge, bool AlsoTranslate = false);
 
 /// <summary>
 /// The hook adapter's instruction for one key event: whether to swallow the

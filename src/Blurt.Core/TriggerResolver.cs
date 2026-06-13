@@ -8,6 +8,9 @@ namespace Blurt.Core;
 public sealed class TriggerResolver
 {
     private const int VkRMenu = 0xA5;      // right Alt — the "AltGr" half
+    private const int VkShift = 0x10;      // generic Shift
+    private const int VkLShift = 0xA0;     // left Shift
+    private const int VkRShift = 0xA1;     // right Shift
 
     /// <summary>
     /// The design-default AltGr bindings. The parameterless constructor uses
@@ -30,6 +33,10 @@ public sealed class TriggerResolver
     private readonly IReadOnlyDictionary<int, TriggerKind> _bindings;
 
     private bool _rightAltDown;
+
+    // Whether Shift is held — the issue-39 "also translate to English" modifier. Read
+    // when a trigger chord is pressed and reported on that trigger's Down event.
+    private bool _shiftDown;
 
     // The trigger key currently held down, so its release is swallowed too —
     // even if AltGr was let go first (otherwise the character leaks on key-up).
@@ -58,6 +65,14 @@ public sealed class TriggerResolver
             return PassThrough;
         }
 
+        // Track Shift like AltGr: observe it but pass it through (it's a normal
+        // modifier, not a trigger). Its state is read when a chord is pressed.
+        if (input.VirtualKeyCode is VkShift or VkLShift or VkRShift)
+        {
+            _shiftDown = input.Edge == KeyEdge.Down;
+            return PassThrough;
+        }
+
         if (input.Edge == KeyEdge.Up
             && _activeTrigger is { } active
             && active.Vk == input.VirtualKeyCode)
@@ -80,7 +95,7 @@ public sealed class TriggerResolver
             && _bindings.TryGetValue(input.VirtualKeyCode, out var kind))
         {
             _activeTrigger = (input.VirtualKeyCode, kind);
-            return new KeyDecision(Swallow: true, new TriggerEvent(kind, KeyEdge.Down));
+            return new KeyDecision(Swallow: true, new TriggerEvent(kind, KeyEdge.Down, AlsoTranslate: _shiftDown));
         }
 
         return PassThrough;

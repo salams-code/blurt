@@ -108,6 +108,14 @@ public static class StatusLabel
 
     /// <summary>Refining via a user-defined Custom prompt.</summary>
     public const string Refining = "refining";
+
+    /// <summary>
+    /// The layered label shown when the "also translate to English" modifier (issue 39)
+    /// is held on a refined dictation: the base operation plus an English marker (e.g.
+    /// <c>"bulleting → english"</c>), so the pill makes the extra step visible. No
+    /// trailing punctuation, so the overlay's animated ellipsis still appends cleanly.
+    /// </summary>
+    public static string AlsoEnglish(string baseLabel) => $"{baseLabel} → english";
 }
 
 /// <summary>A point in screen coordinates, kept WPF-free for pure placement logic.</summary>

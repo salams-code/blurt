@@ -150,4 +150,63 @@ public class TriggerResolverTests
         Assert.False(decision.Swallow);
         Assert.Null(decision.Trigger);
     }
+
+    // Shift virtual-key codes the low-level hook reports.
+    private const int VkLShift = 0xA0;
+    private const int VkRShift = 0xA1;
+
+    [Fact]
+    public void Shift_held_with_the_chord_tags_the_trigger_also_translate_and_still_swallows()
+    {
+        // Issue 39: AltGr+Shift+, is still a swallowed Fix trigger, but tagged
+        // also-translate so the dictation layers an English translation on top.
+        var resolver = new TriggerResolver();
+
+        resolver.Process(new KeyInput(VkLShift, KeyEdge.Down));
+        resolver.Process(new KeyInput(VkRMenu, KeyEdge.Down));
+        var decision = resolver.Process(new KeyInput(VkOemComma, KeyEdge.Down));
+
+        Assert.True(decision.Swallow);
+        Assert.Equal(new TriggerEvent(TriggerKind.Fix, KeyEdge.Down, AlsoTranslate: true), decision.Trigger);
+    }
+
+    [Fact]
+    public void Without_shift_the_trigger_is_not_tagged_also_translate()
+    {
+        // The default behaviour is unchanged: no Shift → no English layer.
+        var resolver = new TriggerResolver();
+
+        resolver.Process(new KeyInput(VkRMenu, KeyEdge.Down));
+        var decision = resolver.Process(new KeyInput(VkOemComma, KeyEdge.Down));
+
+        Assert.Equal(new TriggerEvent(TriggerKind.Fix, KeyEdge.Down, AlsoTranslate: false), decision.Trigger);
+    }
+
+    [Fact]
+    public void Releasing_shift_before_the_chord_clears_the_also_translate_tag()
+    {
+        // The modifier is read at the moment the chord is pressed: Shift let go first
+        // means a plain (untranslated) dictation.
+        var resolver = new TriggerResolver();
+
+        resolver.Process(new KeyInput(VkRShift, KeyEdge.Down));
+        resolver.Process(new KeyInput(VkRShift, KeyEdge.Up));
+        resolver.Process(new KeyInput(VkRMenu, KeyEdge.Down));
+        var decision = resolver.Process(new KeyInput(VkOemComma, KeyEdge.Down));
+
+        Assert.Equal(new TriggerEvent(TriggerKind.Fix, KeyEdge.Down, AlsoTranslate: false), decision.Trigger);
+    }
+
+    [Fact]
+    public void A_shift_key_passes_through_untouched()
+    {
+        // Shift is a normal modifier, not a Blurt trigger: observe it, but never
+        // swallow it or raise a trigger of its own.
+        var resolver = new TriggerResolver();
+
+        var decision = resolver.Process(new KeyInput(VkLShift, KeyEdge.Down));
+
+        Assert.False(decision.Swallow);
+        Assert.Null(decision.Trigger);
+    }
 }

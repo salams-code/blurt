@@ -64,6 +64,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
     // tap (cycle the mode) or a hold (dictate). Null between presses.
     private long? _flexSlotDownTicks;
 
+    // The "also translate to English" modifier for the in-flight dictation (issue 39):
+    // captured from the trigger's Down event (Shift held with the chord) and consumed
+    // when that trigger's Up completes the dictation. Per-dictation, never persisted.
+    private bool _alsoTranslate;
+
     // Created lazily on the first dictation so the model download (first run
     // only) never happens before the user actually asks for a transcription.
     // AsyncLazy forgets failed attempts: a failed download (e.g. blocked
@@ -168,6 +173,14 @@ internal sealed class TrayApplicationContext : ApplicationContext
     // tap-to-cycle / hold-to-dictate with the current mode (issue 07).
     private void OnTriggerObserved(TriggerEvent trigger)
     {
+        // Capture the also-translate modifier at press time (issue 39): the Shift state
+        // is read when the chord goes down, and the handlers consume it on key-up when
+        // they process the take. Per-dictation, so it's never persisted.
+        if (trigger.Edge == KeyEdge.Down)
+        {
+            _alsoTranslate = trigger.AlsoTranslate;
+        }
+
         if (trigger.Kind == TriggerKind.English)
         {
             OnEnglishTrigger(trigger.Edge);
@@ -250,7 +263,12 @@ internal sealed class TrayApplicationContext : ApplicationContext
         // Read the editable English prompt fresh per dictation (issue 35) so a
         // Settings edit takes effect without a restart; blank falls back to default.
         var englishPrompt = ModePrompts.For(RefinedMode.English, _settings.Load());
-        _ = RefineAndInjectAsync(audio, englishPrompt, StatusLabel.Translating);   // fire-and-forget; outcome surfaces as a balloon only when notable
+        // Issue 39: the also-translate modifier composes onto English too (a redundant
+        // but harmless English-on-English layer); English always has a prompt, so the
+        // composed result is never null.
+        var prompt = TranslationModifier.Compose(englishPrompt, _alsoTranslate)!;
+        var label = _alsoTranslate ? StatusLabel.AlsoEnglish(StatusLabel.Translating) : StatusLabel.Translating;
+        _ = RefineAndInjectAsync(audio, prompt, label);   // fire-and-forget; outcome surfaces as a balloon only when notable
     }
 
     // Flex-slot push-to-talk (issue 07 + 11). Down starts recording and stamps the
@@ -319,7 +337,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
         // configured Custom carry a prompt and run RefineAndInjectAsync.
         var audio = _recorder.Stop();
         var currentMode = _flexSlotCycle.Current;
-        var prompt = FlexSlotPrompts.For(currentMode, _settings.Load());
+        // Issue 39: layer an English translation on top when the modifier was held.
+        // Compose leaves the verbatim path null (Pur / empty Custom stay zero-network),
+        // so the Shift modifier can never turn Pur into a network call.
+        var prompt = TranslationModifier.Compose(
+            FlexSlotPrompts.For(currentMode, _settings.Load()), _alsoTranslate);
 
         if (prompt is null)
         {
@@ -342,7 +364,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
                 FlexSlotMode.Email => StatusLabel.Emailing,
                 _ => StatusLabel.Refining,
             };
-            _ = RefineAndInjectAsync(audio, prompt, refiningLabel);   // Bullets / Email / configured Custom
+            // Issue 39: when the modifier is layered on, the pill shows it (e.g.
+            // "bulleting → english") so the extra English step is visible.
+            if (_alsoTranslate)
+                refiningLabel = StatusLabel.AlsoEnglish(refiningLabel);
+            _ = RefineAndInjectAsync(audio, prompt, refiningLabel);   // Bullets / Email / configured Custom (+ optional English layer)
         }
     }
 
@@ -418,7 +444,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
         // Read the editable Fix prompt fresh per dictation (issue 35) so a Settings
         // edit takes effect without a restart; blank falls back to default.
         var fixPrompt = ModePrompts.For(RefinedMode.Fix, _settings.Load());
-        _ = RefineAndInjectAsync(audio, fixPrompt, StatusLabel.Fixing);   // fire-and-forget; outcome surfaces as a balloon only when notable
+        // Issue 39: Shift layers an English translation on top — Fix becomes cleaned-up
+        // English. Fix always has a prompt, so the composed result is never null.
+        var prompt = TranslationModifier.Compose(fixPrompt, _alsoTranslate)!;
+        var label = _alsoTranslate ? StatusLabel.AlsoEnglish(StatusLabel.Fixing) : StatusLabel.Fixing;
+        _ = RefineAndInjectAsync(audio, prompt, label);   // fire-and-forget; outcome surfaces as a balloon only when notable
     }
 
     // Shared refined-dictation path: transcribe locally, then refine the text
