@@ -88,8 +88,15 @@ internal sealed class TrayApplicationContext : ApplicationContext
     // control created on the UI thread at construction; never shown.
     private readonly Control _uiMarshal = new();
 
-    public TrayApplicationContext()
+    // The app's rolling log (Program owns it for crash capture). Used here to record
+    // the chosen GPU preference and the backend the warmup probe actually loaded, so
+    // "which backend is in use" is answerable from blurt.log, not only --selftest.
+    private readonly RollingLog _log;
+
+    public TrayApplicationContext(RollingLog log)
     {
+        _log = log;
+
         var menu = new ContextMenuStrip();
         var recentMenu = new ToolStripMenuItem("Recent dictations");
         menu.Items.Add(recentMenu);
@@ -127,7 +134,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
         // is ever created (the warmup probe below, or the first dictation). Auto →
         // [Vulkan, Cpu] lets the loader prefer the GPU and fall back to CPU on its own;
         // Off → [Cpu]. WhisperBackend.OrderFor is the pure, unit-tested decision.
-        RuntimeOptions.RuntimeLibraryOrder = WhisperBackend.OrderFor(config.GpuPreference).ToList();
+        var libraryOrder = WhisperBackend.OrderFor(config.GpuPreference).ToList();
+        RuntimeOptions.RuntimeLibraryOrder = libraryOrder;
+        _log.Write($"GPU acceleration: preference={config.GpuPreference}, native load order=[{string.Join(", ", libraryOrder)}]");
 
         // Read the overlay anchor and sound toggle at start-up. Both are now applied
         // live by the settings window (issue 14), but still loaded here as the
@@ -704,8 +713,15 @@ internal sealed class TrayApplicationContext : ApplicationContext
             var transcriber = await GetTranscriberAsync();
             await transcriber.EnsureFactoryAsync();
             probed = true;
+
+            // Record which backend the loader actually picked, so blurt.log answers
+            // "what is in use" without needing --selftest or the Settings window.
+            var loaded = RuntimeOptions.LoadedLibrary;
+            _log.Write(loaded is { } lib
+                ? $"Warmup probe: local transcription backend = {WhisperBackend.Active(lib)} (whisper runtime: {lib})"
+                : "Warmup probe: factory built but no loaded library reported (backend unknown).");
         }
-        catch
+        catch (Exception ex)
         {
             // The preferred (Vulkan) build threw outright — rare, since the loader
             // probes hardware and normally falls back to CPU within the same build.
@@ -715,6 +731,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             // ADR-0001 defers that to a crash-proof subprocess probe.
             try { RuntimeOptions.RuntimeLibraryOrder = WhisperBackend.OrderFor(GpuPreference.Off).ToList(); }
             catch { /* nothing more we can safely do from a background probe */ }
+            _log.Write($"Warmup probe failed ({ex.GetType().Name}: {ex.Message}); downgraded native load order to CPU-only.");
             probed = true;   // we attempted a build; Vulkan did not load → the nudge may apply
         }
 

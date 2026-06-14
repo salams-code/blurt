@@ -34,7 +34,7 @@ internal static class Program
         try
         {
             ApplicationConfiguration.Initialize();
-            using var context = new TrayApplicationContext();
+            using var context = new TrayApplicationContext(log);
             Application.Run(context);
         }
         catch (Exception ex)
