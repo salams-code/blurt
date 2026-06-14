@@ -1,6 +1,6 @@
-# 45 — Driver-missing nudge (one-time, dismissible)
+# 45 â€” Driver-missing nudge (one-time, dismissible)
 
-Status: ready-for-agent
+Status: done (2026-06-14 — shipped in PR #4)
 
 ## Parent
 
@@ -11,7 +11,7 @@ Status: ready-for-agent
 When the active display adapter is **"Microsoft Basic Display Adapter"** (Windows' fallback
 when the real GPU driver is missing) **and** Vulkan did not load, show a **one-time,
 dismissible** tray notice suggesting the user install/repair their graphics driver for faster
-transcription. Every other "no Vulkan" case shows only the Settings status line (issue 44) —
+transcription. Every other "no Vulkan" case shows only the Settings status line (issue 44) â€”
 no popup. Dismissal persists across launches.
 
 This is the deliberately **conservative** trigger from ADR-0001: high confidence, low false
@@ -19,7 +19,7 @@ positives. A named AMD/NVIDIA/Intel GPU that simply lacks Vulkan must NOT fire t
 
 ## Acceptance criteria
 
-- [ ] Pure decision `(driverMissingSignal, vulkanLoaded, alreadyDismissed) → showNudge`, unit-tested (RED first), all cases.
+- [ ] Pure decision `(driverMissingSignal, vulkanLoaded, alreadyDismissed) â†’ showNudge`, unit-tested (RED first), all cases.
 - [ ] WMI detection of the "Microsoft Basic Display Adapter" active-adapter signal (impure shell, App layer).
 - [ ] One-time dismissible tray notice via the existing `Notifier`; dismissal persisted in config.
 - [ ] Named-GPU-but-no-Vulkan does NOT fire the nudge (only the status line covers it).
@@ -27,7 +27,7 @@ positives. A named AMD/NVIDIA/Intel GPU that simply lacks Vulkan must NOT fire t
 
 ## Note
 
-Live verification of the exact trigger needs a machine with a missing driver — treat that as
+Live verification of the exact trigger needs a machine with a missing driver â€” treat that as
 opportunistic. The decision logic is unit-covered regardless.
 
 ## Blocked by

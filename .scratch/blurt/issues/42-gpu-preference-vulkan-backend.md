@@ -1,6 +1,6 @@
-# 42 — GpuPreference setting + Vulkan backend selection with CPU fallback
+# 42 â€” GpuPreference setting + Vulkan backend selection with CPU fallback
 
-Status: ready-for-agent
+Status: done (2026-06-14 — shipped in PR #4)
 
 ## Parent
 
@@ -10,11 +10,11 @@ Status: ready-for-agent
 
 Add a user-visible GPU-acceleration preference and make local whisper transcription
 use the Vulkan backend when available, falling back to CPU automatically. This is the
-tracer bullet: setting → runtime order → accelerated transcription.
+tracer bullet: setting â†’ runtime order â†’ accelerated transcription.
 
-- New `BlurtConfig` setting `GpuPreference` with values **`Auto` (first → default)** and `Off`.
+- New `BlurtConfig` setting `GpuPreference` with values **`Auto` (first â†’ default)** and `Off`.
 - A pure function maps it to Whisper.net's `RuntimeOptions.RuntimeLibraryOrder`:
-  `Auto → [Vulkan, Cpu]`, `Off → [Cpu]`. Set **once at startup, before the first
+  `Auto â†’ [Vulkan, Cpu]`, `Off â†’ [Cpu]`. Set **once at startup, before the first
   `WhisperFactory`** (the order is global-static).
 - Reference `Whisper.net.Runtime.Vulkan` (same version as the existing Whisper.net, 1.9.1).
 - This slice may rely on Whisper.net's built-in loader auto-fallback (it probes hardware +
@@ -27,7 +27,7 @@ to GPU-on after an upgrade.
 ## Acceptance criteria
 
 - [ ] `BlurtConfig.GpuPreference` exists (`Auto` default, `Off`); round-trips through config.json; an absent field resolves to `Auto`.
-- [ ] Pure `OrderFor(GpuPreference) → List<RuntimeLibrary>`: `Auto → [Vulkan, Cpu]`, `Off → [Cpu]` — unit-tested in `tests/Blurt.Core.Tests` (observe RED first).
+- [ ] Pure `OrderFor(GpuPreference) â†’ List<RuntimeLibrary>`: `Auto â†’ [Vulkan, Cpu]`, `Off â†’ [Cpu]` â€” unit-tested in `tests/Blurt.Core.Tests` (observe RED first).
 - [ ] `RuntimeOptions.RuntimeLibraryOrder` is set from config at startup, before any `WhisperFactory` is created.
 - [ ] `Whisper.net.Runtime.Vulkan` referenced in `Blurt.App.csproj`.
 - [ ] On a Vulkan-capable machine local transcription runs on the GPU (verifiably faster); on a CPU-only machine it still transcribes (auto-fallback).
@@ -36,8 +36,8 @@ to GPU-on after an upgrade.
 ## TDD note
 
 `OrderFor` + the config default are the pure red-green units. The startup wiring is App shell
-— verify by running the app / `--selftest`, not by a unit test.
+â€” verify by running the app / `--selftest`, not by a unit test.
 
 ## Blocked by
 
-None — can start immediately.
+None â€” can start immediately.

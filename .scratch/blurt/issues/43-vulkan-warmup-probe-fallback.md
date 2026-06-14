@@ -1,6 +1,6 @@
-# 43 — Eager warmup-probe → cached factory + robust fallback + active-backend signal
+# 43 â€” Eager warmup-probe â†’ cached factory + robust fallback + active-backend signal
 
-Status: ready-for-agent
+Status: done (2026-06-14 — shipped in PR #4)
 
 ## Parent
 
@@ -11,8 +11,8 @@ Status: ready-for-agent
 Make the backend choice robust and observable. At startup (when `GpuPreference = Auto`),
 build the `WhisperFactory` under the preferred backend **in the background**; on success it
 **becomes the cached working factory** (no second model load, and it hides the one-time
-Vulkan shader-compile cost); on failure rebuild under `[Cpu]`. The probe outcome — *which
-backend is actually active* — is exposed for the status line (issue 44) and the driver nudge
+Vulkan shader-compile cost); on failure rebuild under `[Cpu]`. The probe outcome â€” *which
+backend is actually active* â€” is exposed for the status line (issue 44) and the driver nudge
 (issue 45). A dictation fired while the probe is in flight awaits the in-flight factory rather
 than starting a second load.
 
@@ -25,8 +25,8 @@ follow-up).
 - [ ] On probe success the same factory instance is reused for the first dictation (no double model-load).
 - [ ] On probe failure the runtime falls back to a CPU factory and transcription still works.
 - [ ] The active backend (GPU/Vulkan vs CPU) is queryable by other components.
-- [ ] The pure part of the decision (setting + probe result → order / active-backend) is unit-tested (RED first).
-- [ ] A first dictation during an in-flight probe awaits it — no concurrent second load.
+- [ ] The pure part of the decision (setting + probe result â†’ order / active-backend) is unit-tested (RED first).
+- [ ] A first dictation during an in-flight probe awaits it â€” no concurrent second load.
 - [ ] Suite stays green.
 
 ## Blocked by

@@ -1,6 +1,6 @@
-# 44 — Settings status line: effective transcription backend
+# 44 â€” Settings status line: effective transcription backend
 
-Status: ready-for-agent
+Status: done (2026-06-14 — shipped in PR #4)
 
 ## Parent
 
@@ -9,12 +9,12 @@ Status: ready-for-agent
 ## What to build
 
 Show the *effective* backend under the GPU-acceleration toggle in Settings, e.g.
-"Aktiv: GPU (Vulkan)" or "Aktiv: CPU — keine kompatible GPU/Treiber gefunden". Driven by the
-active-backend signal from issue 43. Read-only — it reports, it doesn't decide.
+"Aktiv: GPU (Vulkan)" or "Aktiv: CPU â€” keine kompatible GPU/Treiber gefunden". Driven by the
+active-backend signal from issue 43. Read-only â€” it reports, it doesn't decide.
 
 ## Acceptance criteria
 
-- [ ] Pure `StatusText(setting, probeResult) → text`, unit-tested (RED first), covering GPU-active, CPU-fallback, and GPU-off.
+- [ ] Pure `StatusText(setting, probeResult) â†’ text`, unit-tested (RED first), covering GPU-active, CPU-fallback, and GPU-off.
 - [ ] The Settings window shows the status line and reflects the real active backend.
 - [ ] Suite stays green.
 
