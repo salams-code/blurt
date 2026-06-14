@@ -142,7 +142,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         // Off → [Cpu]. WhisperBackend.OrderFor is the pure, unit-tested decision.
         var libraryOrder = WhisperBackend.OrderFor(config.GpuPreference).ToList();
         RuntimeOptions.RuntimeLibraryOrder = libraryOrder;
-        _log.Write($"GPU acceleration: preference={config.GpuPreference}, native load order=[{string.Join(", ", libraryOrder)}]");
+        _log.Write($"GPU acceleration: preference={config.GpuPreference}, native load order=[{string.Join(", ", libraryOrder)}], model={config.WhisperModel.FileName}");
 
         // Remember the startup config so a later Settings save knows whether it changed
         // a restart-only setting (GpuPreference) and can offer to relaunch.
