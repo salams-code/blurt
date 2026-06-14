@@ -111,8 +111,8 @@ internal partial class SettingsWindow : Window
         RefinementProviderBox.SelectedValuePath = nameof(ProviderChoice.Value);
         RefinementProviderBox.ItemsSource = new[]
         {
-            new ProviderChoice("OpenAI", RefinementProvider.OpenAi),
-            new ProviderChoice("Local (Ollama, OpenAI-compatible)", RefinementProvider.LocalOpenAiCompatible),
+            new ProviderChoice("OpenAI-compatible (with API key)", RefinementProvider.OpenAi),
+            new ProviderChoice("OpenAI-compatible (no key)", RefinementProvider.LocalOpenAiCompatible),
         };
 
         PopulateMicrophones();
@@ -394,8 +394,8 @@ internal partial class SettingsWindow : Window
             return;
 
         ProviderHint.Text = provider == RefinementProvider.LocalOpenAiCompatible
-            ? "Local endpoint (e.g. Ollama): set the base URL to http://<host>:11434/v1 and leave the API key empty. The stored key is kept but not sent."
-            : "OpenAI cloud: base URL https://api.openai.com/v1 and a stored API key are used.";
+            ? "Sends no API key. For Ollama, LM Studio, or any keyless OpenAI-compatible server — set the base URL to its /v1 endpoint (e.g. http://<host>:11434/v1). A stored key is kept but not sent."
+            : "Sends your stored API key (Bearer). For the OpenAI cloud, OpenRouter, or your own authenticated server — set the base URL to its /v1 endpoint.";
     }
 
     // Privacy tier → axes (issue 27). Selecting a real tier sets both the

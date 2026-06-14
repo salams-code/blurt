@@ -125,7 +125,7 @@ has no Vulkan driver, Blurt silently uses the CPU and everything still works.
 Blurt ships as a **portable, self-contained folder** — no installer, no admin
 rights, no Program Files, no .NET install required.
 
-1. Download `Blurt-0.3.0-win-x64.zip` from the
+1. Download `Blurt-0.3.1-win-x64.zip` from the
    [latest release](https://github.com/salams-code/blurt/releases/latest) and
    unzip the `Blurt` folder anywhere (e.g. `C:\Tools\Blurt`).
 2. Double-click `Blurt.exe`.
@@ -176,10 +176,12 @@ Everything is in the **Settings** window (right-click the tray icon → Settings
 - **Transcription** — local (whisper.cpp on your CPU) or online (OpenAI Whisper
   API), plus the local model: `small` (q5_1, the default — lighter and faster) or
   `large-v3-turbo` (q5_0, larger but more accurate).
-- **Refinement** — the OpenAI-compatible endpoint: base URL, model, and API key.
-  The default is OpenAI `gpt-4o-mini` (cheap, fast). Point the base URL at a
-  remote Ollama box (`http://<host>:11434/v1`) to run refinement on your own
-  hardware instead — **no code change needed**, the same client speaks both.
+- **Refinement** — any OpenAI-compatible endpoint: base URL, model, and (optionally)
+  an API key. Pick *with API key* for the OpenAI cloud, OpenRouter, or your own
+  authenticated server (the key is sent as Bearer); pick *no key* for Ollama,
+  LM Studio, or a keyless server on your network (`http://<host>:11434/v1`). The
+  default is OpenAI `gpt-4o-mini` (cheap, fast). Running refinement on your own
+  hardware needs **no code change** — the same client speaks to all of them.
 - **Hotkeys** — remap the three bindings and the flex-slot mode order.
 - **Mode prompts** — edit the system prompt each refined mode uses (Fix,
   English, Bullets, Email, and the flex slot's Custom mode). One button resets
