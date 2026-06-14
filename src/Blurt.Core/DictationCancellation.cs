@@ -1,32 +1,43 @@
 namespace Blurt.Core;
 
 /// <summary>
-/// Coordinates per-dictation cancellation (issue 48): owns the in-flight dictation's
-/// <see cref="CancellationTokenSource"/> so the Esc cancel affordance can abort an
-/// in-progress transcription/refinement. Pure of any Win32 — the keyboard hook calls
-/// <see cref="RequestCancel"/> on Esc and swallows the key only when it returns
-/// <c>true</c> (i.e. a dictation was actually in flight to cancel); otherwise Esc
-/// passes through to the focused app untouched.
+/// Coordinates per-dictation cancellation (issue 48): hands each dictation its own
+/// <see cref="CancellationTokenSource"/> via a <see cref="Handle"/> and remembers the
+/// most-recent in-flight one so the Esc cancel affordance can abort it. Pure of any
+/// Win32 — the keyboard hook calls <see cref="RequestCancel"/> on Esc and swallows the
+/// key only when it returns <c>true</c> (a dictation was in flight to cancel);
+/// otherwise Esc passes through to the focused app untouched.
+///
+/// Dictations are launched fire-and-forget and can overlap (a new one can start while
+/// a slow one is still transcribing), so a single shared source would let the finishing
+/// dictation tear down the newer one's. Each <see cref="Handle"/> therefore owns and
+/// disposes only its own source, and ending one never disturbs another's. All state is
+/// guarded by a lock because <see cref="RequestCancel"/> may run on the keyboard-hook
+/// thread while <see cref="Begin"/>/Handle disposal run on the dictation flow.
 /// </summary>
 public sealed class DictationCancellation
 {
-    private CancellationTokenSource? _cts;
+    private readonly object _gate = new();
 
-    /// <summary>
-    /// True while a dictation is in flight and not yet cancelled — i.e. there is
-    /// something for Esc to abort. Goes false once cancelled or after <see cref="End"/>.
-    /// </summary>
-    public bool IsCancellable => _cts is { IsCancellationRequested: false };
+    // The most-recent in-flight dictation's source — the one Esc cancels. Each Handle
+    // owns its own source; this only points at whichever began last and is still live.
+    private CancellationTokenSource? _current;
 
-    /// <summary>
-    /// Begins a cancellable dictation and returns the token to hand to the pipeline.
-    /// Replaces any prior source defensively (dictations are serial push-to-talk).
-    /// </summary>
-    public CancellationToken Begin()
+    /// <summary>True while a dictation is in flight and not yet cancelled.</summary>
+    public bool IsCancellable
     {
-        _cts?.Dispose();
-        _cts = new CancellationTokenSource();
-        return _cts.Token;
+        get { lock (_gate) { return _current is { IsCancellationRequested: false }; } }
+    }
+
+    /// <summary>
+    /// Begins a cancellable dictation. Dispose the returned <see cref="Handle"/> (via
+    /// <c>using</c>) when the dictation ends; it releases only this dictation's source.
+    /// </summary>
+    public Handle Begin()
+    {
+        var cts = new CancellationTokenSource();
+        lock (_gate) { _current = cts; }
+        return new Handle(this, cts);
     }
 
     /// <summary>
@@ -36,19 +47,49 @@ public sealed class DictationCancellation
     /// </summary>
     public bool RequestCancel()
     {
-        if (_cts is { IsCancellationRequested: false } cts)
+        lock (_gate)
         {
-            cts.Cancel();
-            return true;
-        }
+            if (_current is { IsCancellationRequested: false } cts)
+            {
+                cts.Cancel();
+                return true;
+            }
 
-        return false;
+            return false;
+        }
     }
 
-    /// <summary>Ends the current dictation and releases its source.</summary>
-    public void End()
+    // Releases a dictation's source. Only clears _current when it still points at this
+    // source, so a dictation finishing after a newer one started never clears the newer
+    // one's cancellability.
+    private void End(CancellationTokenSource cts)
     {
-        _cts?.Dispose();
-        _cts = null;
+        lock (_gate)
+        {
+            if (ReferenceEquals(_current, cts))
+            {
+                _current = null;
+            }
+        }
+
+        cts.Dispose();
+    }
+
+    /// <summary>Scopes one dictation's cancellation; disposing it ends that dictation.</summary>
+    public sealed class Handle : IDisposable
+    {
+        private readonly DictationCancellation _owner;
+        private readonly CancellationTokenSource _cts;
+
+        internal Handle(DictationCancellation owner, CancellationTokenSource cts)
+        {
+            _owner = owner;
+            _cts = cts;
+        }
+
+        /// <summary>The token to hand to the pipeline for this dictation.</summary>
+        public CancellationToken Token => _cts.Token;
+
+        public void Dispose() => _owner.End(_cts);
     }
 }

@@ -469,8 +469,10 @@ internal sealed class TrayApplicationContext : ApplicationContext
         try
         {
             // Issue 48: make this dictation cancellable — Esc trips this token,
-            // RunAsync returns Cancelled, and nothing is injected.
-            var cancelToken = _cancellation.Begin();
+            // RunAsync returns Cancelled, and nothing is injected. The `using` handle
+            // owns this dictation's own source, so overlapping dictations don't tear
+            // down each other's cancellation.
+            using var cancel = _cancellation.Begin();
 
             // Provisioning (first-run download) can fail on a blocked network;
             // keep that a soft notice rather than letting it reach the pipeline.
@@ -486,7 +488,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
                 _textInjector,
                 onResult: _recentDictations.Add);   // issue 26: recoverable history
 
-            var outcome = await pipeline.RunAsync(audio, cancelToken);
+            var outcome = await pipeline.RunAsync(audio, cancel.Token);
 
             // Single fail-soft path: DictationNotices decides what (if anything)
             // to say for this outcome — Injected is silent, every other case maps
@@ -501,7 +503,6 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
         finally
         {
-            _cancellation.End();   // issue 48: release this dictation's cancel source
             ReturnToIdle();   // hide the pill + tray back to idle once text is in (or failed)
             await audio.DisposeAsync();
         }
@@ -560,8 +561,10 @@ internal sealed class TrayApplicationContext : ApplicationContext
         try
         {
             // Issue 48: make this dictation cancellable — Esc trips this token,
-            // RunAsync returns Cancelled, and nothing is injected.
-            var cancelToken = _cancellation.Begin();
+            // RunAsync returns Cancelled, and nothing is injected. The `using` handle
+            // owns this dictation's own source, so overlapping dictations don't tear
+            // down each other's cancellation.
+            using var cancel = _cancellation.Begin();
 
             // Refined modes already cross the network for the LLM, so the
             // configured transcription source applies: Local → whisper.cpp,
@@ -598,7 +601,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
                 onResult: _recentDictations.Add,   // issue 26: recoverable history
                 transcribeFallback: BuildLocalFallback());   // issue 30: Online → local when offline
 
-            var outcome = await pipeline.RunAsync(audio, cancelToken);
+            var outcome = await pipeline.RunAsync(audio, cancel.Token);
 
             // Same single fail-soft path as DictateAsync — the refined modes add
             // RefinedOffline and InjectionBlocked, both handled by the mapping.
@@ -612,7 +615,6 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
         finally
         {
-            _cancellation.End();   // issue 48: release this dictation's cancel source
             ReturnToIdle();   // hide the pill + tray back to idle once text is in (or failed)
             await audio.DisposeAsync();
         }
@@ -702,17 +704,15 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         public async Task<string> TranscribeAsync(Stream wavAudio, CancellationToken ct = default)
         {
+            // Log only a SUCCESSFUL decode's duration. A throw or an Esc-cancel (issue
+            // 48) must not emit a misleading "Transcription took N ms" line — that would
+            // pollute the GPU-vs-CPU latency signal (ADR-0001) with time-to-exception.
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-            try
-            {
-                return await inner.TranscribeAsync(wavAudio, ct);
-            }
-            finally
-            {
-                stopwatch.Stop();
-                var backend = backendLabel ?? (TranscriptionBackendStatus.Current?.ToString() ?? "unknown");
-                log.Write($"Transcription took {stopwatch.ElapsedMilliseconds} ms (backend: {backend}).");
-            }
+            var text = await inner.TranscribeAsync(wavAudio, ct);
+            stopwatch.Stop();
+            var backend = backendLabel ?? (TranscriptionBackendStatus.Current?.ToString() ?? "unknown");
+            log.Write($"Transcription took {stopwatch.ElapsedMilliseconds} ms (backend: {backend}).");
+            return text;
         }
     }
 
