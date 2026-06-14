@@ -93,6 +93,12 @@ internal sealed class TrayApplicationContext : ApplicationContext
     // "which backend is in use" is answerable from blurt.log, not only --selftest.
     private readonly RollingLog _log;
 
+    // The config Blurt actually started with — the baseline the restart-required check
+    // compares a saved config against. Only GpuPreference needs a relaunch (its native
+    // load order is set once at startup), so a change offers an immediate restart
+    // instead of silently deferring it.
+    private readonly BlurtConfig _startupConfig;
+
     public TrayApplicationContext(RollingLog log)
     {
         _log = log;
@@ -137,6 +143,10 @@ internal sealed class TrayApplicationContext : ApplicationContext
         var libraryOrder = WhisperBackend.OrderFor(config.GpuPreference).ToList();
         RuntimeOptions.RuntimeLibraryOrder = libraryOrder;
         _log.Write($"GPU acceleration: preference={config.GpuPreference}, native load order=[{string.Join(", ", libraryOrder)}]");
+
+        // Remember the startup config so a later Settings save knows whether it changed
+        // a restart-only setting (GpuPreference) and can offer to relaunch.
+        _startupConfig = config;
 
         // Read the overlay anchor and sound toggle at start-up. Both are now applied
         // live by the settings window (issue 14), but still loaded here as the
@@ -1048,6 +1058,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             if (window.SavedConfig is { } saved)
             {
                 ApplySettings(saved);
+                OfferRestartIfNeeded(saved);
             }
             else if (ReferenceEquals(_keyboardHook, hookOnOpen))
             {
@@ -1081,6 +1092,55 @@ internal sealed class TrayApplicationContext : ApplicationContext
         // Transcription source and the selected local model feed the transcriber,
         // which is provisioned once lazily (reading the configured model in
         // ProvisionTranscriberAsync) — those changes apply on the next launch.
+    }
+
+    // A change to a restart-only setting (GpuPreference) doesn't take effect until the
+    // next launch — the native load order is global-static. Rather than leave the user
+    // with a setting that silently won't apply (and a status line that won't match the
+    // running backend), offer an immediate relaunch and say so. Core's RestartPolicy is
+    // the pure decision; this is the App's confirm + restart shell.
+    private void OfferRestartIfNeeded(BlurtConfig saved)
+    {
+        if (!RestartPolicy.RequiresRestart(_startupConfig, saved))
+        {
+            return;
+        }
+
+        var answer = MessageBox.Show(
+            "The GPU acceleration change takes effect after a restart. Restart Blurt now?",
+            AppInfo.Name,
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Question);
+
+        if (answer == DialogResult.Yes)
+        {
+            RestartApp();
+        }
+    }
+
+    // Relaunch a fresh instance, then tear this one down. Environment.ProcessPath is the
+    // real exe even for a single-file portable (Application.ExecutablePath can resolve
+    // to the extraction host). A brief two-instance overlap during the swap is harmless.
+    private void RestartApp()
+    {
+        _log.Write("Restarting to apply the GPU acceleration change.");
+        try
+        {
+            if (Environment.ProcessPath is { } exe)
+            {
+                System.Diagnostics.Process.Start(exe);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Couldn't spawn the new instance — don't kill the running one; the change
+            // still applies on the next manual restart. Surface a soft notice.
+            _log.Write($"Restart failed to start a new instance: {ex.Message}");
+            _notifier.Notify("Couldn't restart automatically — please restart Blurt to apply the change.", NoticeLevel.Warning);
+            return;
+        }
+
+        ExitApp();
     }
 
     private void ExitApp()

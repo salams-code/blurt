@@ -127,7 +127,7 @@
                                    Margin="150,6,0,0" />
                         <TextBlock Style="{StaticResource Hint}"
                                    Margin="150,4,0,0"
-                                   Text="Auto uses the GPU (Vulkan) when available and falls back to CPU automatically. Changing this takes effect after a restart." />
+                                   Text="Auto uses the GPU (Vulkan) when available and falls back to CPU automatically. Changing this needs a restart — Blurt offers to restart when you save." />
                     </StackPanel>
                 </Border>
 
