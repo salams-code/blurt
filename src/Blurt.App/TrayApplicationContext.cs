@@ -1101,13 +1101,17 @@ internal sealed class TrayApplicationContext : ApplicationContext
     // the pure decision; this is the App's confirm + restart shell.
     private void OfferRestartIfNeeded(BlurtConfig saved)
     {
-        if (!RestartPolicy.RequiresRestart(_startupConfig, saved))
+        var changes = RestartPolicy.RestartRequiredChanges(_startupConfig, saved);
+        if (changes.Count == 0)
         {
             return;
         }
 
+        // Name exactly what needs the relaunch (e.g. "GPU acceleration", "local model",
+        // or both) so the prompt isn't a mystery.
+        var what = string.Join(" and ", changes);
         var answer = MessageBox.Show(
-            "The GPU acceleration change takes effect after a restart. Restart Blurt now?",
+            $"Your change to {what} takes effect after a restart. Restart Blurt now?",
             AppInfo.Name,
             MessageBoxButtons.YesNo,
             MessageBoxIcon.Question);
@@ -1123,7 +1127,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     // to the extraction host). A brief two-instance overlap during the swap is harmless.
     private void RestartApp()
     {
-        _log.Write("Restarting to apply the GPU acceleration change.");
+        _log.Write("Restarting to apply a restart-only settings change (GPU acceleration / model).");
         try
         {
             if (Environment.ProcessPath is { } exe)
