@@ -77,6 +77,12 @@ internal sealed class TrayApplicationContext : ApplicationContext
     // attempt until app restart.
     private readonly AsyncLazy<LocalWhisper> _transcriber;
 
+    // Serialises access to _transcriber's AsyncLazy: the startup warmup probe
+    // (background thread, issue 43) and a dictation (UI thread) can otherwise race to
+    // provision two LocalWhisper instances — and so two model/factory loads. The lock
+    // guarantees both share the one instance the warmup heats up.
+    private readonly object _transcriberGate = new();
+
     public TrayApplicationContext()
     {
         var menu = new ContextMenuStrip();
@@ -152,6 +158,13 @@ internal sealed class TrayApplicationContext : ApplicationContext
         // gets the configured VK→trigger map, falling back to defaults for any
         // missing/garbage entry, so a remapped chord works from launch.
         _keyboardHook = InstallHook(config);
+
+        // Eager warmup probe (issue 43): build the WhisperFactory in the background so
+        // the first dictation reuses it (no second model load) and the one-time Vulkan
+        // shader-compile cost is hidden. Fire-and-forget on a threadpool thread — the
+        // tray icon must appear without waiting on it; it self-skips when no model is
+        // installed yet (it must never trigger the first-run download).
+        _ = Task.Run(WarmUpBackendAsync);
 
         // Dev affordance for visual verification (issue 19): `Blurt.exe --settings`
         // or `--onboarding` opens that surface straight away, so UI checks and
@@ -651,9 +664,59 @@ internal sealed class TrayApplicationContext : ApplicationContext
         TranscriberResolver.ResolveAsync(
             _settings.Load().Transcription,
             zeroNetwork,
-            local: async () => new OffloadedTranscriber(await _transcriber.GetAsync()),
+            local: async () => new OffloadedTranscriber(await GetTranscriberAsync()),
             online: () => new OpenAiWhisper(
                 _httpClient, OpenAiTranscriptionBaseUrl, _settings.LoadApiKey() ?? ""));
+
+    // Eager warmup probe (issue 43). On a Vulkan-capable machine this builds the GPU
+    // factory ahead of the first dictation; on a CPU-only machine Whisper.net's loader
+    // falls back to CPU during the same build (order [Vulkan, Cpu] from issue 42), so a
+    // single build already yields a working factory and RuntimeOptions.LoadedLibrary
+    // names which backend won — the signal the status line (44) and nudge (45) read.
+    // Best-effort: a failure here must never block the tray or crash the app.
+    private async Task WarmUpBackendAsync()
+    {
+        try
+        {
+            // Only warm up when a model is already on disk — never trigger the
+            // first-run download from a background probe (ADR-0001: the model is a
+            // separate first-run fetch). Without one the active backend stays
+            // "pending" until the first dictation builds the factory.
+            var provisioner = new ModelProvisioner(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                new GgmlModelDownloader());
+            if (provisioner.FindInstalledModelPath(_settings.Load().WhisperModel) is null)
+            {
+                return;
+            }
+
+            var transcriber = await GetTranscriberAsync();
+            await transcriber.EnsureFactoryAsync();
+        }
+        catch
+        {
+            // The preferred (Vulkan) build threw outright — rare, since the loader
+            // probes hardware and normally falls back to CPU within the same build.
+            // Downgrade the global order to CPU-only so the first dictation's rebuild
+            // prefers CPU instead of retrying the failing GPU path. A Vulkan driver
+            // that loads but crashes mid-inference can't be recovered in-process —
+            // ADR-0001 defers that to a crash-proof subprocess probe.
+            try { RuntimeOptions.RuntimeLibraryOrder = WhisperBackend.OrderFor(GpuPreference.Off).ToList(); }
+            catch { /* nothing more we can safely do from a background probe */ }
+        }
+    }
+
+    // Provision (or return) the single shared local transcriber, serialised so the
+    // background warmup probe and a UI-thread dictation can't create two instances
+    // (and two factory builds). The AsyncLazy still does the once-only provisioning;
+    // the lock just closes the cross-thread race window around it (issue 43).
+    private Task<LocalWhisper> GetTranscriberAsync()
+    {
+        lock (_transcriberGate)
+        {
+            return _transcriber.GetAsync();
+        }
+    }
 
     // Offline fail-soft for Online transcription (issue 30). If the network call
     // fails mid-dictation, the pipeline retries through this delegate so the

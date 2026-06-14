@@ -19,6 +19,20 @@ public enum GpuPreference
 }
 
 /// <summary>
+/// The backend local transcription actually runs on (ADR-0001, issue 43), derived
+/// from the library Whisper.net's loader could load. Reported in the Settings status
+/// line (issue 44) and feeds the driver nudge (issue 45).
+/// </summary>
+public enum TranscriptionBackend
+{
+    /// <summary>GPU acceleration via the Vulkan whisper.cpp backend.</summary>
+    Vulkan,
+
+    /// <summary>CPU — either by preference (Off), or because no usable GPU/driver was found.</summary>
+    Cpu,
+}
+
+/// <summary>
 /// Pure mapping from the user's <see cref="GpuPreference"/> to Whisper.net's native
 /// runtime-library load order (ADR-0001, issue 42). The order is global-static in
 /// Whisper.net and must be set once before the first <c>WhisperFactory</c>; keeping
@@ -40,4 +54,14 @@ public static class WhisperBackend
         // always available, so the safe default is the one that always transcribes.
         _ => [RuntimeLibrary.Cpu],
     };
+
+    /// <summary>
+    /// The effective backend given the library Whisper.net actually loaded
+    /// (<c>RuntimeOptions.LoadedLibrary</c>): <see cref="TranscriptionBackend.Vulkan"/>
+    /// only when Vulkan loaded, otherwise <see cref="TranscriptionBackend.Cpu"/>.
+    /// Blurt ships only the Vulkan GPU backend, so every other loaded library maps to
+    /// CPU for the user-facing status (issue 43).
+    /// </summary>
+    public static TranscriptionBackend Active(RuntimeLibrary loaded) =>
+        loaded == RuntimeLibrary.Vulkan ? TranscriptionBackend.Vulkan : TranscriptionBackend.Cpu;
 }

@@ -34,4 +34,27 @@ public class WhisperBackendTests
         Assert.Equal(GpuPreference.Auto, default(GpuPreference));
         Assert.Equal(GpuPreference.Auto, BlurtConfig.Default.GpuPreference);
     }
+
+    [Fact]
+    public void Active_backend_is_Vulkan_only_when_the_Vulkan_library_loaded()
+    {
+        // Issue 43: the warmup probe reads Whisper.net's process-global
+        // RuntimeOptions.LoadedLibrary after building the factory; this pure
+        // mapping turns it into the user-facing backend.
+        Assert.Equal(TranscriptionBackend.Vulkan, WhisperBackend.Active(RuntimeLibrary.Vulkan));
+    }
+
+    [Theory]
+    [InlineData(RuntimeLibrary.Cpu)]
+    [InlineData(RuntimeLibrary.CpuNoAvx)]
+    [InlineData(RuntimeLibrary.Cuda)]
+    [InlineData(RuntimeLibrary.OpenVino)]
+    public void Active_backend_is_Cpu_for_any_non_Vulkan_library(RuntimeLibrary loaded)
+    {
+        // Blurt ships only the Vulkan GPU backend, so anything else that loads —
+        // a CPU variant, or a hypothetical other accelerator — is reported as CPU.
+        // The "GPU off" vs "no compatible GPU" distinction is the status line's job
+        // (issue 44), driven by the preference, not by this mapping.
+        Assert.Equal(TranscriptionBackend.Cpu, WhisperBackend.Active(loaded));
+    }
 }
