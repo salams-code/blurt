@@ -95,6 +95,10 @@ internal partial class SettingsWindow : Window
         PrivacyTierBox.ItemsSource = TierChoices;
 
         TranscriptionSourceBox.ItemsSource = new[] { TranscriptionMode.Local, TranscriptionMode.Online };
+        // GPU acceleration (issue 44): Auto (prefer Vulkan, fall back to CPU) vs Off
+        // (CPU only). Raw enum items, like the source/anchor combos; SelectedItem casts
+        // straight back on save.
+        GpuPreferenceBox.ItemsSource = new[] { GpuPreference.Auto, GpuPreference.Off };
         OverlayAnchorBox.ItemsSource = new[] { OverlayAnchor.MousePointer, OverlayAnchor.BottomCenter };
         // The two local models offered (issue 18): the small default and the
         // higher-quality large-v3-turbo. The combo renders each model's Size.
@@ -164,6 +168,13 @@ internal partial class SettingsWindow : Window
         ModelSizeBox.SelectedItem =
             ModelChoices.FirstOrDefault(m => m.Size == config.WhisperModel.Size)
             ?? WhisperModel.Default;
+
+        // GPU acceleration (issues 42/44): the saved preference drives the combo, and
+        // the read-only status line reports the backend actually loaded right now —
+        // Core's pure StatusText over the live active-backend signal. Set once: the
+        // real backend only changes on restart, so it doesn't follow the combo.
+        GpuPreferenceBox.SelectedItem = config.GpuPreference;
+        GpuStatusText.Text = WhisperBackend.StatusText(config.GpuPreference, TranscriptionBackendStatus.Current);
 
         RefinementProviderBox.SelectedValue = config.RefinementProvider;
         BaseUrlBox.Text = config.RefinementBaseUrl;
@@ -588,6 +599,7 @@ internal partial class SettingsWindow : Window
         {
             Transcription = (TranscriptionMode)TranscriptionSourceBox.SelectedItem,
             WhisperModel = (WhisperModel)ModelSizeBox.SelectedItem,
+            GpuPreference = (GpuPreference)GpuPreferenceBox.SelectedItem,
             RefinementProvider = (RefinementProvider)RefinementProviderBox.SelectedValue,
             RefinementBaseUrl = BaseUrlBox.Text.Trim(),
             RefinementModel = RefinementModelBox.Text.Trim(),

@@ -57,4 +57,46 @@ public class WhisperBackendTests
         // (issue 44), driven by the preference, not by this mapping.
         Assert.Equal(TranscriptionBackend.Cpu, WhisperBackend.Active(loaded));
     }
+
+    // --- Settings status line (issue 44): effective backend, read-only ---
+
+    [Fact]
+    public void Status_text_for_gpu_off_says_cpu_by_choice()
+    {
+        var text = WhisperBackend.StatusText(GpuPreference.Off, TranscriptionBackend.Cpu);
+
+        Assert.Contains("CPU", text, StringComparison.OrdinalIgnoreCase);
+        // The deliberate-off case must read as a choice, not a missing-GPU problem.
+        Assert.Contains("off", text, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Status_text_for_active_vulkan_says_gpu_vulkan()
+    {
+        var text = WhisperBackend.StatusText(GpuPreference.Auto, TranscriptionBackend.Vulkan);
+
+        Assert.Contains("GPU", text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Vulkan", text, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Status_text_for_cpu_fallback_under_auto_explains_the_missing_gpu()
+    {
+        var text = WhisperBackend.StatusText(GpuPreference.Auto, TranscriptionBackend.Cpu);
+
+        Assert.Contains("CPU", text, StringComparison.OrdinalIgnoreCase);
+        // Distinct from the deliberate-off message: this is an unwanted fallback, so
+        // it must NOT read as "off" — it explains there is no usable GPU.
+        Assert.DoesNotContain("off", text, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Status_text_is_pending_until_the_warmup_probe_has_run()
+    {
+        // null = the factory hasn't been built yet (no model installed, or the probe
+        // is still in flight). The line reports "detecting" rather than guessing.
+        var text = WhisperBackend.StatusText(GpuPreference.Auto, active: null);
+
+        Assert.Contains("detect", text, StringComparison.OrdinalIgnoreCase);
+    }
 }

@@ -64,4 +64,31 @@ public static class WhisperBackend
     /// </summary>
     public static TranscriptionBackend Active(RuntimeLibrary loaded) =>
         loaded == RuntimeLibrary.Vulkan ? TranscriptionBackend.Vulkan : TranscriptionBackend.Cpu;
+
+    /// <summary>
+    /// The read-only Settings status line (issue 44) reporting the <em>effective</em>
+    /// backend: the user's <paramref name="preference"/> plus what the probe found
+    /// (<paramref name="active"/>; <c>null</c> until the factory has been built). It
+    /// distinguishes the three cases the user cares about — GPU active, an unwanted
+    /// CPU fallback (no usable GPU), and CPU by choice — plus a "detecting" state
+    /// while the warmup probe is still in flight.
+    /// </summary>
+    public static string StatusText(GpuPreference preference, TranscriptionBackend? active)
+    {
+        // Off is a deliberate choice — say so, and never as a missing-GPU problem.
+        // (We know the effective backend is CPU without waiting on the probe.)
+        if (preference == GpuPreference.Off)
+        {
+            return "Active backend: CPU (GPU acceleration off)";
+        }
+
+        return active switch
+        {
+            TranscriptionBackend.Vulkan => "Active backend: GPU (Vulkan)",
+            TranscriptionBackend.Cpu => "Active backend: CPU — no compatible GPU/driver found",
+            // null: the warmup probe hasn't built a factory yet (no model installed,
+            // or the build is still running). Report it rather than guessing.
+            _ => "Active backend: detecting…",
+        };
+    }
 }
