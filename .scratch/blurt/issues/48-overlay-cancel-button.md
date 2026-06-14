@@ -33,6 +33,40 @@ injected.
 - [ ] The open design questions above are resolved and recorded in this issue before implementation.
 - [ ] Suite stays green; HITL: confirm cancel works live across modes.
 
+## Findings & proposed resolutions — PENDING HUMAN CONFIRMATION (do not build yet)
+
+Foundation status: **issue 47 is DONE** — `DictationOutcome.Cancelled` exists, the
+pipeline treats `OperationCanceledException` as a clean cancel (no inject, distinct
+from `TranscriptionFailed`/`RefinedOffline`), and `DictationNotices.For(Cancelled)`
+is silent. So the *pipeline* side is ready; what remains is the trigger + UI, which
+is where the open questions bite.
+
+Investigated the overlay to ground the questions (not guessed):
+
+- **Overlay interactivity (BLOCKER):** the pill is genuinely click-through today.
+  [OverlayWindow.xaml.cs:142](../../../src/Blurt.App/OverlayWindow.xaml.cs#L142) sets
+  `WS_EX_TRANSPARENT | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW`, so hit-tests fall through
+  to the window beneath and the overlay never activates. A clickable X therefore
+  needs the window (or a sub-region) made hit-testable *while transcribing/refining*
+  and reverted afterwards — non-trivial, and it risks stealing focus from the app the
+  user is dictating into.
+- **Anchor behaviour:** with `OverlayAnchor.MousePointer` the pill is positioned at
+  the live cursor on show ([OverlayController.cs:134](../../../src/Blurt.App/OverlayController.cs#L134)),
+  so a click target there chases the cursor — awkward/unreliable. With
+  `BottomCenter` the pill is a fixed, clickable location.
+
+**Proposed resolution (for confirmation):**
+1. Make a **cancel hotkey (Esc) the PRIMARY affordance** — interaction-model-
+   independent, works at every anchor, and matches push-to-talk (no mousing to a
+   pill). This is plumbing a per-dictation `CancellationTokenSource` + an Esc handler
+   in the existing keyboard hook; no overlay-interactivity change required.
+2. Treat the **clickable X as SECONDARY**, only at `BottomCenter` (where a fixed
+   target makes sense); skip it at `MousePointer`. Defer it unless wanted, since it
+   needs the click-through/hit-test rework above.
+
+These are proposals only — **not implemented**. Confirm (1)/(2), the Esc key choice,
+and whether the X is in-scope for v1, then this issue is ready to build on top of 47.
+
 ## Blocked by
 
 - [Issue 47](47-pipeline-cancel-outcome.md)
