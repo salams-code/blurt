@@ -41,6 +41,11 @@
     <PackageReference Include="NAudio" Version="2.3.0" />
     <PackageReference Include="Whisper.net" Version="1.9.1" />
     <PackageReference Include="Whisper.net.Runtime" Version="1.9.1" />
+    <!-- GPU acceleration (ADR-0001, issue 42): the Vulkan whisper.cpp backend, ~3x
+         faster than CPU on target hardware. Its natives land under
+         runtimes/vulkan/win-x64/ (not the CPU runtime's runtimes/win-x64/native/);
+         the portable publish and the selftest probe both account for that layout. -->
+    <PackageReference Include="Whisper.net.Runtime.Vulkan" Version="1.9.1" />
   </ItemGroup>
 
 </Project>

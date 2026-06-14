@@ -1,5 +1,6 @@
 using System.Net.Http;
 using Blurt.Core;
+using Whisper.net.LibraryLoader;
 
 namespace Blurt.App;
 
@@ -109,6 +110,13 @@ internal sealed class TrayApplicationContext : ApplicationContext
             // the tray ("How to use Blurt…"); a returning user never sees it.
             RunTutorial();
         }
+
+        // GPU acceleration (ADR-0001, issue 42): set Whisper.net's global-static
+        // native load order from the saved preference BEFORE the first WhisperFactory
+        // is ever created (the warmup probe below, or the first dictation). Auto →
+        // [Vulkan, Cpu] lets the loader prefer the GPU and fall back to CPU on its own;
+        // Off → [Cpu]. WhisperBackend.OrderFor is the pure, unit-tested decision.
+        RuntimeOptions.RuntimeLibraryOrder = WhisperBackend.OrderFor(config.GpuPreference).ToList();
 
         // Read the overlay anchor and sound toggle at start-up. Both are now applied
         // live by the settings window (issue 14), but still loaded here as the

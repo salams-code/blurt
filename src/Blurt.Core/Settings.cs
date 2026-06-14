@@ -93,6 +93,15 @@ public sealed record BlurtConfig
     public WhisperModel WhisperModel { get; init; } = WhisperModel.Default;
 
     /// <summary>
+    /// GPU-acceleration preference for local transcription (ADR-0001, issue 42).
+    /// <see cref="GpuPreference.Auto"/> (the default) prefers the Vulkan backend and
+    /// falls back to CPU automatically; <see cref="GpuPreference.Off"/> forces CPU.
+    /// Auto is the zero value, so a config written before this setting existed has no
+    /// key for it and deserialises to GPU-on after an upgrade.
+    /// </summary>
+    public GpuPreference GpuPreference { get; init; } = GpuPreference.Auto;
+
+    /// <summary>
     /// Which refinement endpoint is active (issue 17): the OpenAI cloud (send the
     /// stored key) or a local/Ollama OpenAI-compatible endpoint (send no key, but
     /// keep it stored). Gates whether the key is sent; <see cref="RefinementBaseUrl"/>
@@ -226,6 +235,7 @@ public sealed record BlurtConfig
 
         return Transcription == other.Transcription
             && WhisperModel == other.WhisperModel
+            && GpuPreference == other.GpuPreference
             && RefinementProvider == other.RefinementProvider
             && RefinementBaseUrl == other.RefinementBaseUrl
             && RefinementModel == other.RefinementModel
@@ -250,6 +260,7 @@ public sealed record BlurtConfig
         var hash = new HashCode();
         hash.Add(Transcription);
         hash.Add(WhisperModel);
+        hash.Add(GpuPreference);
         hash.Add(RefinementProvider);
         hash.Add(RefinementBaseUrl);
         hash.Add(RefinementModel);

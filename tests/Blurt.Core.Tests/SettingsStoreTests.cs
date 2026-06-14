@@ -144,6 +144,31 @@ public class SettingsStoreTests
     }
 
     [Fact]
+    public void GpuPreference_round_trips_and_an_absent_field_resolves_to_auto()
+    {
+        // Issue 42 / ADR-0001: the new GPU-acceleration preference persists like any
+        // other setting, and a config.json written before it existed (no key for it)
+        // must resolve to Auto — so existing installs get GPU-on after upgrade.
+        var root = TempRoot();
+        try
+        {
+            var store = new SettingsStore(root, new FlipProtector());
+
+            store.Save(BlurtConfig.Default with { GpuPreference = GpuPreference.Off });
+            Assert.Equal(GpuPreference.Off, store.Load().GpuPreference);
+
+            // An older config with no GpuPreference key loads as Auto.
+            Directory.CreateDirectory(Path.Combine(root, "Blurt"));
+            File.WriteAllText(store.ConfigPath, """{ "Transcription": "Local" }""");
+            Assert.Equal(GpuPreference.Auto, store.Load().GpuPreference);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public void Loading_a_config_without_the_per_mode_prompt_keys_uses_the_shipped_defaults()
     {
         // Backward compatibility (issue 35, criterion 3): a config.json written

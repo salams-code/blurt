@@ -10,6 +10,10 @@
     <!-- DPAPI (ProtectedData) for the current-user-encrypted API key store.
          Used only by DpapiSecretProtector, which is Windows-guarded. -->
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
+    <!-- Managed Whisper.net only (no native runtime): gives the pure GPU-preference
+         mapping (WhisperBackend, ADR-0001) the RuntimeLibrary enum + RuntimeOptions
+         types. The native runtimes (CPU/Vulkan) are referenced by Blurt.App. -->
+    <PackageReference Include="Whisper.net" Version="1.9.1" />
   </ItemGroup>
 
 </Project>
