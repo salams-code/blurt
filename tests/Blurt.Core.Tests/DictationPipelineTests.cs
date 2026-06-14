@@ -442,6 +442,25 @@ public class DictationPipelineTests
 
     // --- hand-rolled fakes over the pipeline's seams ---
 
+    [Fact]
+    public async Task Cancel_after_transcription_but_before_injection_injects_nothing_and_returns_Cancelled()
+    {
+        // Issue 48: the user pressed Esc once the (short) decode had finished but
+        // before injection — the transcriber returned normally, never observing the
+        // token. A tripped token here is still a deliberate abort: return Cancelled
+        // and inject nothing, rather than letting the just-finished text land.
+        var injector = new RecordingInjector();
+        var pipeline = new DictationPipeline(
+            new FakeTranscriber { Text = "hallo welt" }, injector);
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var outcome = await pipeline.RunAsync(Audio(), cts.Token);
+
+        Assert.Equal(DictationOutcome.Cancelled, outcome);
+        Assert.False(injector.WasCalled);
+    }
+
     private static Stream Audio() => new MemoryStream(new byte[] { 1, 2, 3 });
 
     private sealed class FakeTranscriber : ITranscriber

@@ -21,6 +21,7 @@ internal sealed class KeyboardHook : IDisposable
     private const int WM_KEYUP = 0x0101;
     private const int WM_SYSKEYDOWN = 0x0104;   // keys pressed while Alt is held
     private const int WM_SYSKEYUP = 0x0105;
+    private const int VK_ESCAPE = 0x1B;         // issue 48: Esc cancels an in-flight dictation
 
     private readonly TriggerResolver _resolver;
     private readonly LowLevelKeyboardProc _proc;   // held in a field so the GC never collects the callback
@@ -35,6 +36,14 @@ internal sealed class KeyboardHook : IDisposable
 
     /// <summary>Raised on each recognised Blurt trigger (down and up), on the UI thread.</summary>
     public event Action<TriggerEvent>? TriggerObserved;
+
+    /// <summary>
+    /// Issue 48: invoked on Esc key-down to abort an in-flight dictation. Returns true
+    /// when a dictation was actually cancelled, so Esc is swallowed only then and
+    /// otherwise reaches the focused app unchanged. Wired by the tray context; the
+    /// decision itself lives in Core's <see cref="DictationCancellation"/>.
+    /// </summary>
+    public Func<bool>? CancelInFlightDictation { get; set; }
 
     /// <summary>Installs with the design-default AltGr bindings.</summary>
     public KeyboardHook() : this(new TriggerResolver())
@@ -97,6 +106,17 @@ internal sealed class KeyboardHook : IDisposable
                 try
                 {
                     var data = Marshal.PtrToStructure<KbdLlHookStruct>(lParam);
+
+                    // Issue 48: Esc is the primary cancel affordance. Abort an in-flight
+                    // dictation and swallow the key — but only when one was actually
+                    // cancelled, so an idle Esc still reaches the focused app.
+                    if (keyEdge == KeyEdge.Down
+                        && (int)data.vkCode == VK_ESCAPE
+                        && CancelInFlightDictation?.Invoke() == true)
+                    {
+                        return 1;
+                    }
+
                     var decision = _resolver.Process(new KeyInput((int)data.vkCode, keyEdge));
 
                     if (decision.Trigger is { } trigger)

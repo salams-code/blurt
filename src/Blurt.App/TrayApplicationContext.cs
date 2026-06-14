@@ -41,6 +41,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly TextInjector _textInjector;
     private readonly AudioRecorder _recorder = new();
 
+    // Issue 48: owns the in-flight dictation's cancellation source so Esc (wired into
+    // the keyboard hook) can abort transcription/refinement — RunAsync then returns
+    // Cancelled and nothing is injected.
+    private readonly DictationCancellation _cancellation = new();
+
     // Fix mode (issue 09): settings supply the refiner's base URL/model/key, and
     // a single long-lived HttpClient is reused across utterances (creating one
     // per request would leak sockets). The refiner itself is built per Fix so a
@@ -226,6 +231,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         var resolver = new TriggerResolver(HotkeyBindings.ResolveVkMap(config));
         var hook = new KeyboardHook(resolver);
         hook.TriggerObserved += OnTriggerObserved;
+        hook.CancelInFlightDictation = _cancellation.RequestCancel;   // issue 48: Esc aborts an in-flight dictation
         hook.Install();
         return hook;
     }
@@ -462,6 +468,10 @@ internal sealed class TrayApplicationContext : ApplicationContext
         EnterProcessing(StatusLabel.Transcribing(local: true));
         try
         {
+            // Issue 48: make this dictation cancellable — Esc trips this token,
+            // RunAsync returns Cancelled, and nothing is injected.
+            var cancelToken = _cancellation.Begin();
+
             // Provisioning (first-run download) can fail on a blocked network;
             // keep that a soft notice rather than letting it reach the pipeline.
             // zeroNetwork: this is the verbatim (Pur / raw-fallback) path — its
@@ -476,7 +486,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
                 _textInjector,
                 onResult: _recentDictations.Add);   // issue 26: recoverable history
 
-            var outcome = await pipeline.RunAsync(audio);
+            var outcome = await pipeline.RunAsync(audio, cancelToken);
 
             // Single fail-soft path: DictationNotices decides what (if anything)
             // to say for this outcome — Injected is silent, every other case maps
@@ -491,6 +501,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
         finally
         {
+            _cancellation.End();   // issue 48: release this dictation's cancel source
             ReturnToIdle();   // hide the pill + tray back to idle once text is in (or failed)
             await audio.DisposeAsync();
         }
@@ -548,6 +559,10 @@ internal sealed class TrayApplicationContext : ApplicationContext
         EnterProcessing(StatusLabel.Transcribing(transcribingLocally));
         try
         {
+            // Issue 48: make this dictation cancellable — Esc trips this token,
+            // RunAsync returns Cancelled, and nothing is injected.
+            var cancelToken = _cancellation.Begin();
+
             // Refined modes already cross the network for the LLM, so the
             // configured transcription source applies: Local → whisper.cpp,
             // Online → the OpenAI Whisper API (issue 12). Resolved per dictation,
@@ -583,7 +598,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
                 onResult: _recentDictations.Add,   // issue 26: recoverable history
                 transcribeFallback: BuildLocalFallback());   // issue 30: Online → local when offline
 
-            var outcome = await pipeline.RunAsync(audio);
+            var outcome = await pipeline.RunAsync(audio, cancelToken);
 
             // Same single fail-soft path as DictateAsync — the refined modes add
             // RefinedOffline and InjectionBlocked, both handled by the mapping.
@@ -597,6 +612,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
         finally
         {
+            _cancellation.End();   // issue 48: release this dictation's cancel source
             ReturnToIdle();   // hide the pill + tray back to idle once text is in (or failed)
             await audio.DisposeAsync();
         }
@@ -679,10 +695,10 @@ internal sealed class TrayApplicationContext : ApplicationContext
     /// <summary>
     /// Times the local whisper decode and logs how long it took with the active
     /// backend, so the GPU-vs-CPU speed difference (ADR-0001) is measurable from
-    /// blurt.log, not just felt. Wraps the local transcriber only — online
-    /// transcription is a network call, not a backend comparison.
+    /// blurt.log, not just felt. Also times the online path when constructed with a
+    /// backendLabel (e.g. "Cloud (OpenAI whisper-1)"), so cloud latency is logged too.
     /// </summary>
-    private sealed class TimedTranscriber(ITranscriber inner, RollingLog log) : ITranscriber
+    private sealed class TimedTranscriber(ITranscriber inner, RollingLog log, string? backendLabel = null) : ITranscriber
     {
         public async Task<string> TranscribeAsync(Stream wavAudio, CancellationToken ct = default)
         {
@@ -694,7 +710,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             finally
             {
                 stopwatch.Stop();
-                var backend = TranscriptionBackendStatus.Current?.ToString() ?? "unknown";
+                var backend = backendLabel ?? (TranscriptionBackendStatus.Current?.ToString() ?? "unknown");
                 log.Write($"Transcription took {stopwatch.ElapsedMilliseconds} ms (backend: {backend}).");
             }
         }
@@ -718,8 +734,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
             zeroNetwork,
             local: async () => new TimedTranscriber(
                 new OffloadedTranscriber(await GetTranscriberAsync()), _log),
-            online: () => new OpenAiWhisper(
-                _httpClient, OpenAiTranscriptionBaseUrl, _settings.LoadApiKey() ?? ""));
+            online: () => new TimedTranscriber(
+                new OpenAiWhisper(_httpClient, OpenAiTranscriptionBaseUrl, _settings.LoadApiKey() ?? ""),
+                _log, "Cloud (OpenAI whisper-1)"));
 
     // Eager warmup probe (issue 43). On a Vulkan-capable machine this builds the GPU
     // factory ahead of the first dictation; on a CPU-only machine Whisper.net's loader

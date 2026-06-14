@@ -1,6 +1,6 @@
-# 48 — Overlay cancel affordance (X)
+# 48 â€” Overlay cancel affordance (X)
 
-Status: ready-for-human
+Status: done (2026-06-14 — Esc-to-cancel shipped; clickable X deferred; PR #4)
 
 ## Parent
 
@@ -13,13 +13,13 @@ that aborts the in-flight dictation via a per-dictation `CancellationTokenSource
 returns `Cancelled` (issue 47) and the overlay/tray return cleanly to Idle with nothing
 injected.
 
-## Open design questions (resolve with a human before/while building — do NOT guess)
+## Open design questions (resolve with a human before/while building â€” do NOT guess)
 
 - **Overlay interactivity:** can the overlay pill receive mouse clicks today, or is the
   overlay window topmost / transparent / click-through? A clickable X may require making
   (part of) it hit-testable.
 - **Anchor behaviour:** the overlay can anchor to the mouse pointer
-  (`OverlayAnchor.MousePointer`) — a click target that follows the cursor is awkward. What's
+  (`OverlayAnchor.MousePointer`) â€” a click target that follows the cursor is awkward. What's
   the behaviour at each anchor (MousePointer vs BottomCenter)?
 - **Hotkey alternative:** should we ALSO add a cancel **hotkey** (e.g. Esc) as a robust,
   interaction-model-independent way to abort? Push-to-talk users may not want to mouse over to
@@ -33,9 +33,9 @@ injected.
 - [ ] The open design questions above are resolved and recorded in this issue before implementation.
 - [ ] Suite stays green; HITL: confirm cancel works live across modes.
 
-## Findings & proposed resolutions — PENDING HUMAN CONFIRMATION (do not build yet)
+## Findings & proposed resolutions â€” PENDING HUMAN CONFIRMATION (do not build yet)
 
-Foundation status: **issue 47 is DONE** — `DictationOutcome.Cancelled` exists, the
+Foundation status: **issue 47 is DONE** â€” `DictationOutcome.Cancelled` exists, the
 pipeline treats `OperationCanceledException` as a clean cancel (no inject, distinct
 from `TranscriptionFailed`/`RefinedOffline`), and `DictationNotices.For(Cancelled)`
 is silent. So the *pipeline* side is ready; what remains is the trigger + UI, which
@@ -48,15 +48,15 @@ Investigated the overlay to ground the questions (not guessed):
   `WS_EX_TRANSPARENT | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW`, so hit-tests fall through
   to the window beneath and the overlay never activates. A clickable X therefore
   needs the window (or a sub-region) made hit-testable *while transcribing/refining*
-  and reverted afterwards — non-trivial, and it risks stealing focus from the app the
+  and reverted afterwards â€” non-trivial, and it risks stealing focus from the app the
   user is dictating into.
 - **Anchor behaviour:** with `OverlayAnchor.MousePointer` the pill is positioned at
   the live cursor on show ([OverlayController.cs:134](../../../src/Blurt.App/OverlayController.cs#L134)),
-  so a click target there chases the cursor — awkward/unreliable. With
+  so a click target there chases the cursor â€” awkward/unreliable. With
   `BottomCenter` the pill is a fixed, clickable location.
 
 **Proposed resolution (for confirmation):**
-1. Make a **cancel hotkey (Esc) the PRIMARY affordance** — interaction-model-
+1. Make a **cancel hotkey (Esc) the PRIMARY affordance** â€” interaction-model-
    independent, works at every anchor, and matches push-to-talk (no mousing to a
    pill). This is plumbing a per-dictation `CancellationTokenSource` + an Esc handler
    in the existing keyboard hook; no overlay-interactivity change required.
@@ -64,8 +64,12 @@ Investigated the overlay to ground the questions (not guessed):
    target makes sense); skip it at `MousePointer`. Defer it unless wanted, since it
    needs the click-through/hit-test rework above.
 
-These are proposals only — **not implemented**. Confirm (1)/(2), the Esc key choice,
-and whether the X is in-scope for v1, then this issue is ready to build on top of 47.
+**CONFIRMED 2026-06-14 (human decision):** build (1) â€” **Esc as the PRIMARY cancel
+affordance**: a per-dictation `CancellationTokenSource` plus an Esc handler in the
+keyboard hook, active only while a dictation is in flight. The **clickable X is
+deferred** (out of scope for this slice â€” it needs the overlay click-through/hit-test
+rework). Overlay may show a lightweight "Esc = Abbrechen" text hint while busy (no
+interactivity required). Building on top of the done #47 Cancelled outcome.
 
 ## Blocked by
 

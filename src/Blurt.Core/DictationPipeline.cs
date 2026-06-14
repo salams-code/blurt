@@ -181,6 +181,15 @@ public sealed class DictationPipeline
             }
         }
 
+        // Issue 48: an Esc after transcription/refinement but before injection is
+        // still a deliberate abort. Stop here — inject nothing and record nothing —
+        // so a just-finished decode the token never interrupted mid-run doesn't land
+        // at the cursor after the user already cancelled.
+        if (ct.IsCancellationRequested)
+        {
+            return DictationOutcome.Cancelled;
+        }
+
         // Report the final text — what is about to go to the cursor — to the
         // optional sink (issue 26: the tray's recent-dictations history). Also on
         // a blocked paste below: the clipboard copy is volatile, the history is
