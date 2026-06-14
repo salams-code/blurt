@@ -1,5 +1,6 @@
 using System.Net.Http;
 using Blurt.Core;
+using Whisper.net.LibraryLoader;
 
 namespace Blurt.App;
 
@@ -40,6 +41,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly TextInjector _textInjector;
     private readonly AudioRecorder _recorder = new();
 
+    // Issue 48: owns the in-flight dictation's cancellation source so Esc (wired into
+    // the keyboard hook) can abort transcription/refinement — RunAsync then returns
+    // Cancelled and nothing is injected.
+    private readonly DictationCancellation _cancellation = new();
+
     // Fix mode (issue 09): settings supply the refiner's base URL/model/key, and
     // a single long-lived HttpClient is reused across utterances (creating one
     // per request would leak sockets). The refiner itself is built per Fix so a
@@ -76,8 +82,32 @@ internal sealed class TrayApplicationContext : ApplicationContext
     // attempt until app restart.
     private readonly AsyncLazy<LocalWhisper> _transcriber;
 
-    public TrayApplicationContext()
+    // Serialises access to _transcriber's AsyncLazy: the startup warmup probe
+    // (background thread, issue 43) and a dictation (UI thread) can otherwise race to
+    // provision two LocalWhisper instances — and so two model/factory loads. The lock
+    // guarantees both share the one instance the warmup heats up.
+    private readonly object _transcriberGate = new();
+
+    // Marshals the warmup probe's background-thread driver nudge (issue 45) onto the
+    // UI thread, where the tray balloon and the config write must run. A handle-only
+    // control created on the UI thread at construction; never shown.
+    private readonly Control _uiMarshal = new();
+
+    // The app's rolling log (Program owns it for crash capture). Used here to record
+    // the chosen GPU preference and the backend the warmup probe actually loaded, so
+    // "which backend is in use" is answerable from blurt.log, not only --selftest.
+    private readonly RollingLog _log;
+
+    // The config Blurt actually started with — the baseline the restart-required check
+    // compares a saved config against. Only GpuPreference needs a relaunch (its native
+    // load order is set once at startup), so a change offers an immediate restart
+    // instead of silently deferring it.
+    private readonly BlurtConfig _startupConfig;
+
+    public TrayApplicationContext(RollingLog log)
     {
+        _log = log;
+
         var menu = new ContextMenuStrip();
         var recentMenu = new ToolStripMenuItem("Recent dictations");
         menu.Items.Add(recentMenu);
@@ -109,6 +139,19 @@ internal sealed class TrayApplicationContext : ApplicationContext
             // the tray ("How to use Blurt…"); a returning user never sees it.
             RunTutorial();
         }
+
+        // GPU acceleration (ADR-0001, issue 42): set Whisper.net's global-static
+        // native load order from the saved preference BEFORE the first WhisperFactory
+        // is ever created (the warmup probe below, or the first dictation). Auto →
+        // [Vulkan, Cpu] lets the loader prefer the GPU and fall back to CPU on its own;
+        // Off → [Cpu]. WhisperBackend.OrderFor is the pure, unit-tested decision.
+        var libraryOrder = WhisperBackend.OrderFor(config.GpuPreference).ToList();
+        RuntimeOptions.RuntimeLibraryOrder = libraryOrder;
+        _log.Write($"GPU acceleration: preference={config.GpuPreference}, native load order=[{string.Join(", ", libraryOrder)}], model={config.WhisperModel.FileName}");
+
+        // Remember the startup config so a later Settings save knows whether it changed
+        // a restart-only setting (GpuPreference) and can offer to relaunch.
+        _startupConfig = config;
 
         // Read the overlay anchor and sound toggle at start-up. Both are now applied
         // live by the settings window (issue 14), but still loaded here as the
@@ -145,6 +188,17 @@ internal sealed class TrayApplicationContext : ApplicationContext
         // missing/garbage entry, so a remapped chord works from launch.
         _keyboardHook = InstallHook(config);
 
+        // Create the marshal control's handle on this (UI) thread so the warmup probe
+        // can BeginInvoke its driver nudge back here (issue 45). Never shown.
+        _ = _uiMarshal.Handle;
+
+        // Eager warmup probe (issue 43): build the WhisperFactory in the background so
+        // the first dictation reuses it (no second model load) and the one-time Vulkan
+        // shader-compile cost is hidden. Fire-and-forget on a threadpool thread — the
+        // tray icon must appear without waiting on it; it self-skips when no model is
+        // installed yet (it must never trigger the first-run download).
+        _ = Task.Run(WarmUpBackendAsync);
+
         // Dev affordance for visual verification (issue 19): `Blurt.exe --settings`
         // or `--onboarding` opens that surface straight away, so UI checks and
         // screenshots don't have to click through the tray menu first.
@@ -177,6 +231,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         var resolver = new TriggerResolver(HotkeyBindings.ResolveVkMap(config));
         var hook = new KeyboardHook(resolver);
         hook.TriggerObserved += OnTriggerObserved;
+        hook.CancelInFlightDictation = _cancellation.RequestCancel;   // issue 48: Esc aborts an in-flight dictation
         hook.Install();
         return hook;
     }
@@ -413,6 +468,12 @@ internal sealed class TrayApplicationContext : ApplicationContext
         EnterProcessing(StatusLabel.Transcribing(local: true));
         try
         {
+            // Issue 48: make this dictation cancellable — Esc trips this token,
+            // RunAsync returns Cancelled, and nothing is injected. The `using` handle
+            // owns this dictation's own source, so overlapping dictations don't tear
+            // down each other's cancellation.
+            using var cancel = _cancellation.Begin();
+
             // Provisioning (first-run download) can fail on a blocked network;
             // keep that a soft notice rather than letting it reach the pipeline.
             // zeroNetwork: this is the verbatim (Pur / raw-fallback) path — its
@@ -427,7 +488,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
                 _textInjector,
                 onResult: _recentDictations.Add);   // issue 26: recoverable history
 
-            var outcome = await pipeline.RunAsync(audio);
+            var outcome = await pipeline.RunAsync(audio, cancel.Token);
 
             // Single fail-soft path: DictationNotices decides what (if anything)
             // to say for this outcome — Injected is silent, every other case maps
@@ -499,6 +560,12 @@ internal sealed class TrayApplicationContext : ApplicationContext
         EnterProcessing(StatusLabel.Transcribing(transcribingLocally));
         try
         {
+            // Issue 48: make this dictation cancellable — Esc trips this token,
+            // RunAsync returns Cancelled, and nothing is injected. The `using` handle
+            // owns this dictation's own source, so overlapping dictations don't tear
+            // down each other's cancellation.
+            using var cancel = _cancellation.Begin();
+
             // Refined modes already cross the network for the LLM, so the
             // configured transcription source applies: Local → whisper.cpp,
             // Online → the OpenAI Whisper API (issue 12). Resolved per dictation,
@@ -534,7 +601,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
                 onResult: _recentDictations.Add,   // issue 26: recoverable history
                 transcribeFallback: BuildLocalFallback());   // issue 30: Online → local when offline
 
-            var outcome = await pipeline.RunAsync(audio);
+            var outcome = await pipeline.RunAsync(audio, cancel.Token);
 
             // Same single fail-soft path as DictateAsync — the refined modes add
             // RefinedOffline and InjectionBlocked, both handled by the mapping.
@@ -627,6 +694,28 @@ internal sealed class TrayApplicationContext : ApplicationContext
             => Task.Run(() => inner.TranscribeAsync(wavAudio, ct), ct);
     }
 
+    /// <summary>
+    /// Times the local whisper decode and logs how long it took with the active
+    /// backend, so the GPU-vs-CPU speed difference (ADR-0001) is measurable from
+    /// blurt.log, not just felt. Also times the online path when constructed with a
+    /// backendLabel (e.g. "Cloud (OpenAI whisper-1)"), so cloud latency is logged too.
+    /// </summary>
+    private sealed class TimedTranscriber(ITranscriber inner, RollingLog log, string? backendLabel = null) : ITranscriber
+    {
+        public async Task<string> TranscribeAsync(Stream wavAudio, CancellationToken ct = default)
+        {
+            // Log only a SUCCESSFUL decode's duration. A throw or an Esc-cancel (issue
+            // 48) must not emit a misleading "Transcription took N ms" line — that would
+            // pollute the GPU-vs-CPU latency signal (ADR-0001) with time-to-exception.
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            var text = await inner.TranscribeAsync(wavAudio, ct);
+            stopwatch.Stop();
+            var backend = backendLabel ?? (TranscriptionBackendStatus.Current?.ToString() ?? "unknown");
+            log.Write($"Transcription took {stopwatch.ElapsedMilliseconds} ms (backend: {backend}).");
+            return text;
+        }
+    }
+
     // Where the OpenAI Whisper API lives. Transcription always targets the OpenAI
     // cloud (unlike refinement, whose base URL is user-configurable per provider):
     // the online option exists for lower latency, not for arbitrary endpoints.
@@ -643,9 +732,143 @@ internal sealed class TrayApplicationContext : ApplicationContext
         TranscriberResolver.ResolveAsync(
             _settings.Load().Transcription,
             zeroNetwork,
-            local: async () => new OffloadedTranscriber(await _transcriber.GetAsync()),
-            online: () => new OpenAiWhisper(
-                _httpClient, OpenAiTranscriptionBaseUrl, _settings.LoadApiKey() ?? ""));
+            local: async () => new TimedTranscriber(
+                new OffloadedTranscriber(await GetTranscriberAsync()), _log),
+            online: () => new TimedTranscriber(
+                new OpenAiWhisper(_httpClient, OpenAiTranscriptionBaseUrl, _settings.LoadApiKey() ?? ""),
+                _log, "Cloud (OpenAI whisper-1)"));
+
+    // Eager warmup probe (issue 43). On a Vulkan-capable machine this builds the GPU
+    // factory ahead of the first dictation; on a CPU-only machine Whisper.net's loader
+    // falls back to CPU during the same build (order [Vulkan, Cpu] from issue 42), so a
+    // single build already yields a working factory and RuntimeOptions.LoadedLibrary
+    // names which backend won — the signal the status line (44) and nudge (45) read.
+    // Best-effort: a failure here must never block the tray or crash the app.
+    private async Task WarmUpBackendAsync()
+    {
+        var probed = false;
+        try
+        {
+            // Only warm up when a model is already on disk — never trigger the
+            // first-run download from a background probe (ADR-0001: the model is a
+            // separate first-run fetch). Without one the active backend stays
+            // "pending" until the first dictation builds the factory, and the driver
+            // nudge waits until then too (no premature first-launch popup).
+            var provisioner = new ModelProvisioner(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                new GgmlModelDownloader());
+            if (provisioner.FindInstalledModelPath(_settings.Load().WhisperModel) is null)
+            {
+                return;
+            }
+
+            var transcriber = await GetTranscriberAsync();
+            await transcriber.EnsureFactoryAsync();
+            probed = true;
+
+            // Record which backend the loader actually picked, so blurt.log answers
+            // "what is in use" without needing --selftest or the Settings window.
+            var loaded = RuntimeOptions.LoadedLibrary;
+            _log.Write(loaded is { } lib
+                ? $"Warmup probe: local transcription backend = {WhisperBackend.Active(lib)} (whisper runtime: {lib})"
+                : "Warmup probe: factory built but no loaded library reported (backend unknown).");
+        }
+        catch (Exception ex)
+        {
+            // The preferred (Vulkan) build threw outright — rare, since the loader
+            // probes hardware and normally falls back to CPU within the same build.
+            // Downgrade the global order to CPU-only so the first dictation's rebuild
+            // prefers CPU instead of retrying the failing GPU path. A Vulkan driver
+            // that loads but crashes mid-inference can't be recovered in-process —
+            // ADR-0001 defers that to a crash-proof subprocess probe.
+            try { RuntimeOptions.RuntimeLibraryOrder = WhisperBackend.OrderFor(GpuPreference.Off).ToList(); }
+            catch { /* nothing more we can safely do from a background probe */ }
+            _log.Write($"Warmup probe failed ({ex.GetType().Name}: {ex.Message}); downgraded native load order to CPU-only.");
+            probed = true;   // we attempted a build; Vulkan did not load → the nudge may apply
+        }
+
+        // Evaluate the one-time driver-missing nudge once the probe has actually run
+        // (issue 45) — so "Vulkan did not load" reflects a real attempt, not the
+        // no-model-yet case.
+        if (probed)
+        {
+            EvaluateDriverNudgeAfterProbe();
+        }
+    }
+
+    // The one-time, dismissible driver-missing nudge (issue 45). Runs on the warmup
+    // probe's background thread: the WMI query (DisplayAdapter) and Core's pure
+    // DriverNudge.ShouldShow decision happen off the UI thread; only the tray notice
+    // and the dismissal write are marshaled back to it. Conservative by design — it
+    // fires only when Windows is on the basic-display fallback AND Vulkan did not load
+    // AND it hasn't been shown before. Best-effort: a failure must never surface.
+    private void EvaluateDriverNudgeAfterProbe()
+    {
+        try
+        {
+            var config = _settings.Load();
+            if (config.GpuDriverNudgeDismissed)
+            {
+                return;   // one-time: already shown and dismissed
+            }
+
+            var driverMissing = DisplayAdapter.IsBasicDisplayAdapterActive();
+            if (!DriverNudge.ShouldShow(driverMissing, TranscriptionBackendStatus.VulkanLoaded, config.GpuDriverNudgeDismissed))
+            {
+                return;
+            }
+
+            MarshalToUi(() =>
+            {
+                _notifier.Notify(
+                    "Graphics driver looks missing — Blurt is transcribing on CPU. " +
+                    "Install or repair your GPU driver for faster GPU (Vulkan) transcription.",
+                    NoticeLevel.Info);
+
+                // Persist the one-time dismissal so the nudge never shows again. Re-load
+                // first so a settings save during the probe window isn't clobbered.
+                _settings.Save(_settings.Load() with { GpuDriverNudgeDismissed = true });
+            });
+        }
+        catch
+        {
+            // The nudge is best-effort diagnostics; a failure must never crash the app.
+        }
+    }
+
+    // Run an action on the UI thread (where the tray icon lives), from any thread,
+    // via the handle-only marshal control. Fail-soft: a marshaling failure (e.g. the
+    // handle is gone during shutdown) is dropped rather than thrown.
+    private void MarshalToUi(Action action)
+    {
+        try
+        {
+            if (_uiMarshal.IsHandleCreated && _uiMarshal.InvokeRequired)
+            {
+                _uiMarshal.BeginInvoke(action);
+            }
+            else
+            {
+                action();
+            }
+        }
+        catch
+        {
+            /* marshaling failed during teardown — drop the best-effort nudge */
+        }
+    }
+
+    // Provision (or return) the single shared local transcriber, serialised so the
+    // background warmup probe and a UI-thread dictation can't create two instances
+    // (and two factory builds). The AsyncLazy still does the once-only provisioning;
+    // the lock just closes the cross-thread race window around it (issue 43).
+    private Task<LocalWhisper> GetTranscriberAsync()
+    {
+        lock (_transcriberGate)
+        {
+            return _transcriber.GetAsync();
+        }
+    }
 
     // Offline fail-soft for Online transcription (issue 30). If the network call
     // fails mid-dictation, the pipeline retries through this delegate so the
@@ -852,6 +1075,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             if (window.SavedConfig is { } saved)
             {
                 ApplySettings(saved);
+                OfferRestartIfNeeded(saved);
             }
             else if (ReferenceEquals(_keyboardHook, hookOnOpen))
             {
@@ -887,6 +1111,59 @@ internal sealed class TrayApplicationContext : ApplicationContext
         // ProvisionTranscriberAsync) — those changes apply on the next launch.
     }
 
+    // A change to a restart-only setting (GpuPreference) doesn't take effect until the
+    // next launch — the native load order is global-static. Rather than leave the user
+    // with a setting that silently won't apply (and a status line that won't match the
+    // running backend), offer an immediate relaunch and say so. Core's RestartPolicy is
+    // the pure decision; this is the App's confirm + restart shell.
+    private void OfferRestartIfNeeded(BlurtConfig saved)
+    {
+        var changes = RestartPolicy.RestartRequiredChanges(_startupConfig, saved);
+        if (changes.Count == 0)
+        {
+            return;
+        }
+
+        // Name exactly what needs the relaunch (e.g. "GPU acceleration", "local model",
+        // or both) so the prompt isn't a mystery.
+        var what = string.Join(" and ", changes);
+        var answer = MessageBox.Show(
+            $"Your change to {what} takes effect after a restart. Restart Blurt now?",
+            AppInfo.Name,
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Question);
+
+        if (answer == DialogResult.Yes)
+        {
+            RestartApp();
+        }
+    }
+
+    // Relaunch a fresh instance, then tear this one down. Environment.ProcessPath is the
+    // real exe even for a single-file portable (Application.ExecutablePath can resolve
+    // to the extraction host). A brief two-instance overlap during the swap is harmless.
+    private void RestartApp()
+    {
+        _log.Write("Restarting to apply a restart-only settings change (GPU acceleration / model).");
+        try
+        {
+            if (Environment.ProcessPath is { } exe)
+            {
+                System.Diagnostics.Process.Start(exe);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Couldn't spawn the new instance — don't kill the running one; the change
+            // still applies on the next manual restart. Surface a soft notice.
+            _log.Write($"Restart failed to start a new instance: {ex.Message}");
+            _notifier.Notify("Couldn't restart automatically — please restart Blurt to apply the change.", NoticeLevel.Warning);
+            return;
+        }
+
+        ExitApp();
+    }
+
     private void ExitApp()
     {
         _settingsWindow?.Close();
@@ -904,6 +1181,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             _overlay.Dispose();        // close the WPF overlay window (issue 06)
             _trayIcon.Dispose();
             _trayIcons.Dispose();      // free the generated tray icon GDI handles (issue 06)
+            _uiMarshal.Dispose();      // release the handle-only marshal window (issue 45)
         }
 
         base.Dispose(disposing);

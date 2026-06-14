@@ -93,6 +93,15 @@ public sealed record BlurtConfig
     public WhisperModel WhisperModel { get; init; } = WhisperModel.Default;
 
     /// <summary>
+    /// GPU-acceleration preference for local transcription (ADR-0001, issue 42).
+    /// <see cref="GpuPreference.Auto"/> (the default) prefers the Vulkan backend and
+    /// falls back to CPU automatically; <see cref="GpuPreference.Off"/> forces CPU.
+    /// Auto is the zero value, so a config written before this setting existed has no
+    /// key for it and deserialises to GPU-on after an upgrade.
+    /// </summary>
+    public GpuPreference GpuPreference { get; init; } = GpuPreference.Auto;
+
+    /// <summary>
     /// Which refinement endpoint is active (issue 17): the OpenAI cloud (send the
     /// stored key) or a local/Ollama OpenAI-compatible endpoint (send no key, but
     /// keep it stored). Gates whether the key is sent; <see cref="RefinementBaseUrl"/>
@@ -212,6 +221,15 @@ public sealed record BlurtConfig
     /// </summary>
     public string InputDeviceName { get; init; } = "";
 
+    /// <summary>
+    /// Whether the one-time driver-missing nudge (issue 45) has already been shown and
+    /// dismissed. Persisted so the conservative "install/repair your GPU driver" notice
+    /// fires at most once across launches. Defaults to <c>false</c> (never shown yet);
+    /// a config written before this setting existed has no key for it and resolves to
+    /// false, so an eligible machine still gets the one nudge after upgrade.
+    /// </summary>
+    public bool GpuDriverNudgeDismissed { get; init; } = false;
+
     /// <summary>The fully-defaulted configuration used when no config file exists yet.</summary>
     public static BlurtConfig Default { get; } = new();
 
@@ -226,6 +244,7 @@ public sealed record BlurtConfig
 
         return Transcription == other.Transcription
             && WhisperModel == other.WhisperModel
+            && GpuPreference == other.GpuPreference
             && RefinementProvider == other.RefinementProvider
             && RefinementBaseUrl == other.RefinementBaseUrl
             && RefinementModel == other.RefinementModel
@@ -238,6 +257,7 @@ public sealed record BlurtConfig
             && OverlayAnchor == other.OverlayAnchor
             && SoundEnabled == other.SoundEnabled
             && OnboardingCompleted == other.OnboardingCompleted
+            && GpuDriverNudgeDismissed == other.GpuDriverNudgeDismissed
             && InputDeviceMode == other.InputDeviceMode
             && InputDeviceName == other.InputDeviceName
             && HotkeyBindingsEqual(HotkeyBindings, other.HotkeyBindings)
@@ -250,6 +270,7 @@ public sealed record BlurtConfig
         var hash = new HashCode();
         hash.Add(Transcription);
         hash.Add(WhisperModel);
+        hash.Add(GpuPreference);
         hash.Add(RefinementProvider);
         hash.Add(RefinementBaseUrl);
         hash.Add(RefinementModel);
@@ -262,6 +283,7 @@ public sealed record BlurtConfig
         hash.Add(OverlayAnchor);
         hash.Add(SoundEnabled);
         hash.Add(OnboardingCompleted);
+        hash.Add(GpuDriverNudgeDismissed);
         hash.Add(InputDeviceMode);
         hash.Add(InputDeviceName);
         foreach (var binding in HotkeyBindings.OrderBy(b => b.Key))

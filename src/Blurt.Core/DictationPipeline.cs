@@ -40,6 +40,16 @@ public enum DictationOutcome
     /// text left on clipboard" notice so the user can paste it manually.
     /// </summary>
     InjectionBlocked,
+
+    /// <summary>
+    /// The dictation was deliberately cancelled (the push-to-talk token was
+    /// tripped) - nothing injected, and *not* an error. Distinct from
+    /// <see cref="TranscriptionFailed"/>/<see cref="RefinedOffline"/> so a clean
+    /// abort isn't masked as a failure; the caller surfaces no notice and returns
+    /// quietly to Idle. Appended last: this enum is never serialized, so order is
+    /// safe.
+    /// </summary>
+    Cancelled,
 }
 
 /// <summary>
@@ -89,6 +99,15 @@ public sealed class DictationPipeline
         {
             text = await _transcriber.TranscribeAsync(wavAudio, ct);
         }
+        catch (OperationCanceledException)
+        {
+            // Issue 47: a tripped cancellation token is a deliberate abort, not a
+            // failure. Cancel means abort, not degrade — return Cancelled without
+            // attempting the local fallback, and inject nothing. This clause must
+            // precede the catch-all below (C# matches catch clauses top-down) so a
+            // clean cancel is never masked as TranscriptionFailed.
+            return DictationOutcome.Cancelled;
+        }
         catch
         {
             // Fail-soft (design §10): a failed transcription is a notice, not a
@@ -112,6 +131,13 @@ public sealed class DictationPipeline
 
                 text = await _transcribeFallback(wavAudio, ct);
                 transcribedOffline = true;
+            }
+            catch (OperationCanceledException)
+            {
+                // Issue 47: cancelling the local fallback is a deliberate abort,
+                // distinct from the fallback failing. Precedes the catch-all so a
+                // clean cancel isn't masked as TranscriptionFailed.
+                return DictationOutcome.Cancelled;
             }
             catch
             {
@@ -140,10 +166,28 @@ public sealed class DictationPipeline
             {
                 text = await _refine(text, ct);
             }
+            catch (OperationCanceledException)
+            {
+                // Issue 47: a cancelled refiner is a deliberate abort, not the
+                // refiner being unreachable — so this is Cancelled (nothing
+                // injected), NOT RefinedOffline (which would inject the raw
+                // transcript). Precedes the catch-all so a genuine refiner failure
+                // still degrades to RefinedOffline below.
+                return DictationOutcome.Cancelled;
+            }
             catch
             {
                 refinedOffline = true;
             }
+        }
+
+        // Issue 48: an Esc after transcription/refinement but before injection is
+        // still a deliberate abort. Stop here — inject nothing and record nothing —
+        // so a just-finished decode the token never interrupted mid-run doesn't land
+        // at the cursor after the user already cancelled.
+        if (ct.IsCancellationRequested)
+        {
+            return DictationOutcome.Cancelled;
         }
 
         // Report the final text — what is about to go to the cursor — to the

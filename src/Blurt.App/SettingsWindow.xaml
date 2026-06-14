@@ -105,6 +105,32 @@
                     </StackPanel>
                 </Border>
 
+                <!-- GPU acceleration (ADR-0001, issues 42/44): prefer the Vulkan whisper
+                     backend for local transcription (Auto, ~3x faster on target hardware)
+                     or force CPU (Off). The status line below reports the backend actually
+                     in use — read-only, driven by the startup warmup probe (issue 43). -->
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource GroupHeader}" Text="GPU acceleration" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Acceleration" />
+                            <ComboBox x:Name="GpuPreferenceBox" Grid.Column="1" />
+                        </Grid>
+                        <!-- The effective backend (issue 44): set once on load from the
+                             active-backend signal; it reports, it doesn't decide. -->
+                        <TextBlock x:Name="GpuStatusText"
+                                   Style="{StaticResource Hint}"
+                                   Margin="150,6,0,0" />
+                        <TextBlock Style="{StaticResource Hint}"
+                                   Margin="150,4,0,0"
+                                   Text="Auto uses the GPU (Vulkan) when available and falls back to CPU automatically. Changing this needs a restart — Blurt offers to restart when you save." />
+                    </StackPanel>
+                </Border>
+
                 <!-- Microphone (issue 16) -->
                 <Border Style="{StaticResource Card}">
                     <StackPanel>

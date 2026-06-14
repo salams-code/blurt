@@ -13,7 +13,7 @@
     <AssemblyName>Blurt</AssemblyName>
     <RootNamespace>Blurt.App</RootNamespace>
     <!-- Product version. Stamps Assembly/File/Informational version. -->
-    <Version>0.2.0</Version>
+    <Version>0.3.0</Version>
     <!-- The exe / taskbar / Alt-Tab icon: the Blurt mark. Regenerate from the brand
          geometry by running Blurt.exe with the export-icon dev flag (see BlurtLogo). -->
     <ApplicationIcon>assets\blurt.ico</ApplicationIcon>
@@ -37,10 +37,37 @@
     <ProjectReference Include="..\Blurt.Core\Blurt.Core.csproj" />
   </ItemGroup>
 
+  <!-- Trim native runtimes for RIDs this win-x64 portable can't use (ADR-0001, issue
+       46). The Whisper.net runtime .targets force-copy every RID's natives regardless
+       of the publish RID — including a ~58 MB linux-x64 ggml-vulkan .so — which on a
+       single-file win-x64 self-contained build is dead weight that nearly doubles the
+       artifact (~120 MB → ~190 MB). Keep only runtimes/win-x64 (CPU) and
+       runtimes/vulkan/win-x64 (the GPU natives the app actually loads). Scoped to a
+       win-x64 publish so a future win-arm64 build keeps its own natives. -->
+  <Target Name="TrimForeignRuntimeNatives" AfterTargets="Publish"
+          Condition="'$(RuntimeIdentifier)' == 'win-x64'">
+    <ItemGroup>
+      <_ForeignRuntimeFile Include="$(PublishDir)runtimes\win-arm64\**\*" />
+      <_ForeignRuntimeFile Include="$(PublishDir)runtimes\win-x86\**\*" />
+      <_ForeignRuntimeFile Include="$(PublishDir)runtimes\browser\**\*" />
+      <_ForeignRuntimeFile Include="$(PublishDir)runtimes\vulkan\linux-x64\**\*" />
+    </ItemGroup>
+    <Delete Files="@(_ForeignRuntimeFile)" />
+    <RemoveDir Directories="$(PublishDir)runtimes\win-arm64;$(PublishDir)runtimes\win-x86;$(PublishDir)runtimes\browser;$(PublishDir)runtimes\vulkan\linux-x64" />
+  </Target>
+
   <ItemGroup>
+    <!-- WMI (Win32_VideoController) for the driver-missing nudge signal (issue 45):
+         detect when Windows is on the "Microsoft Basic Display Adapter" fallback. -->
+    <PackageReference Include="System.Management" Version="8.0.0" />
     <PackageReference Include="NAudio" Version="2.3.0" />
     <PackageReference Include="Whisper.net" Version="1.9.1" />
     <PackageReference Include="Whisper.net.Runtime" Version="1.9.1" />
+    <!-- GPU acceleration (ADR-0001, issue 42): the Vulkan whisper.cpp backend, ~3x
+         faster than CPU on target hardware. Its natives land under
+         runtimes/vulkan/win-x64/ (not the CPU runtime's runtimes/win-x64/native/);
+         the portable publish and the selftest probe both account for that layout. -->
+    <PackageReference Include="Whisper.net.Runtime.Vulkan" Version="1.9.1" />
   </ItemGroup>
 
 </Project>

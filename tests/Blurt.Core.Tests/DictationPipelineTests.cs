@@ -87,6 +87,110 @@ public class DictationPipelineTests
     }
 
     [Fact]
+    public async Task A_cancelled_transcription_is_a_clean_outcome_not_a_failure()
+    {
+        // Issue 47: cancelling a dictation (the user releases push-to-talk to
+        // abort, the token is tripped) is deliberate, not an error. The primary
+        // transcriber throwing OperationCanceledException must return Cancelled —
+        // distinct from TranscriptionFailed — and nothing may be injected.
+        var transcriber = new FakeTranscriber { Throws = new OperationCanceledException() };
+        var injector = new RecordingInjector();
+        var pipeline = new DictationPipeline(transcriber, injector);
+
+        var outcome = await pipeline.RunAsync(Audio());
+
+        Assert.False(injector.WasCalled);
+        Assert.Equal(DictationOutcome.Cancelled, outcome);
+    }
+
+    [Fact]
+    public async Task A_cancelled_transcription_does_not_attempt_the_local_fallback()
+    {
+        // Cancel means abort, not degrade: even with a local fallback wired, a
+        // cancelled primary transcription must NOT fall back to the local model
+        // (that would resurrect a dictation the user chose to abandon). The
+        // fallback is never invoked and the outcome is Cancelled.
+        var online = new FakeTranscriber { Throws = new OperationCanceledException() };
+        var injector = new RecordingInjector();
+        var fallbackCalled = false;
+        var pipeline = new DictationPipeline(
+            online,
+            injector,
+            transcribeFallback: (_, _) =>
+            {
+                fallbackCalled = true;
+                return Task.FromResult("lokal transkribiert");
+            });
+
+        var outcome = await pipeline.RunAsync(Audio());
+
+        Assert.False(fallbackCalled);
+        Assert.False(injector.WasCalled);
+        Assert.Equal(DictationOutcome.Cancelled, outcome);
+    }
+
+    [Fact]
+    public async Task A_cancelled_local_fallback_is_a_clean_outcome_not_a_failure()
+    {
+        // The online attempt failed for a real reason (no network) and the local
+        // fallback was then cancelled mid-run. That cancellation is deliberate, so
+        // the outcome is Cancelled — not TranscriptionFailed — and nothing is
+        // injected.
+        var online = new FakeTranscriber { Throws = new HttpRequestException("no network") };
+        var injector = new RecordingInjector();
+        var pipeline = new DictationPipeline(
+            online,
+            injector,
+            transcribeFallback: (_, _) => Task.FromException<string>(
+                new OperationCanceledException()));
+
+        var outcome = await pipeline.RunAsync(Audio());
+
+        Assert.False(injector.WasCalled);
+        Assert.Equal(DictationOutcome.Cancelled, outcome);
+    }
+
+    [Fact]
+    public async Task A_cancelled_refinement_is_a_clean_outcome_not_refined_offline()
+    {
+        // Issue 47: a refiner throwing OperationCanceledException means the user
+        // aborted, not that refinement was unreachable. It must return Cancelled
+        // (NOT RefinedOffline, which would inject the raw transcript) and nothing
+        // may be injected.
+        var transcriber = new FakeTranscriber { Text = "ähm hallo welt" };
+        var injector = new RecordingInjector();
+        var pipeline = new DictationPipeline(
+            transcriber,
+            injector,
+            refine: (_, _) => Task.FromException<string>(new OperationCanceledException()));
+
+        var outcome = await pipeline.RunAsync(Audio());
+
+        Assert.False(injector.WasCalled);
+        Assert.Equal(DictationOutcome.Cancelled, outcome);
+    }
+
+    [Fact]
+    public async Task A_cancelled_dictation_does_not_mask_a_genuine_refiner_failure()
+    {
+        // Regression guard for issue 47: Cancelled must not become a catch-all
+        // that swallows real errors. A genuine refiner failure (network down) must
+        // STILL fall back to RefinedOffline and inject the raw transcript.
+        var transcriber = new FakeTranscriber { Text = "ähm hallo welt" };
+        var injector = new RecordingInjector();
+        var pipeline = new DictationPipeline(
+            transcriber,
+            injector,
+            refine: (_, _) => Task.FromException<string>(
+                new HttpRequestException("connection refused")));
+
+        var outcome = await pipeline.RunAsync(Audio());
+
+        Assert.Equal("ähm hallo welt", injector.InjectedText);
+        Assert.Equal(DictationOutcome.RefinedOffline, outcome);
+    }
+
+    [Fact]
     public async Task An_online_transcription_failure_falls_back_to_a_local_transcriber()
     {
         // Issue 30: Full Cloud + a network outage must not lose the dictation.
@@ -337,6 +441,25 @@ public class DictationPipelineTests
     }
 
     // --- hand-rolled fakes over the pipeline's seams ---
+
+    [Fact]
+    public async Task Cancel_after_transcription_but_before_injection_injects_nothing_and_returns_Cancelled()
+    {
+        // Issue 48: the user pressed Esc once the (short) decode had finished but
+        // before injection — the transcriber returned normally, never observing the
+        // token. A tripped token here is still a deliberate abort: return Cancelled
+        // and inject nothing, rather than letting the just-finished text land.
+        var injector = new RecordingInjector();
+        var pipeline = new DictationPipeline(
+            new FakeTranscriber { Text = "hallo welt" }, injector);
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var outcome = await pipeline.RunAsync(Audio(), cts.Token);
+
+        Assert.Equal(DictationOutcome.Cancelled, outcome);
+        Assert.False(injector.WasCalled);
+    }
 
     private static Stream Audio() => new MemoryStream(new byte[] { 1, 2, 3 });
 

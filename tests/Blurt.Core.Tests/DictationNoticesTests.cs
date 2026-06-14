@@ -44,6 +44,15 @@ public class DictationNoticesTests
     }
 
     [Fact]
+    public void A_cancelled_dictation_is_silent()
+    {
+        // Issue 47: cancelling is a deliberate, clean abort — nothing was
+        // injected and nothing went wrong. Like Injected, it maps to no notice;
+        // the app returns quietly to Idle.
+        Assert.Null(DictationNotices.For(DictationOutcome.Cancelled));
+    }
+
+    [Fact]
     public void Injection_blocked_is_a_warning_notice_mentioning_the_clipboard()
     {
         var notice = DictationNotices.For(DictationOutcome.InjectionBlocked);

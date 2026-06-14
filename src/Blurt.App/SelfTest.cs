@@ -8,12 +8,13 @@ namespace Blurt.App;
 /// <summary>
 /// Headless diagnostic (<c>Blurt.exe --selftest</c>): proves the native
 /// whisper.cpp libraries load in <em>this</em> build before anyone relies on a
-/// dictation. That is the one real risk of the single-file portable exe, where
-/// the native libs are self-extracted to a temp folder at startup rather than
-/// sitting next to the managed assemblies — so it must be checked on the shipped
-/// artifact, not just a normal build.
+/// dictation, and reports <em>which backend</em> loaded (Vulkan GPU vs CPU). That
+/// is the one real risk of the single-file portable exe, where the native libs sit
+/// next to the managed bundle rather than being self-extracted — so it must be
+/// checked on the shipped artifact, not just a normal build (ADR-0001, issue 46).
 ///
-/// Loads whatever ggml model is already installed (no download), creates a
+/// Loads whatever ggml model is already installed (no download) under the same
+/// Vulkan-preferred load order the app uses (issue 42), creates a
 /// <see cref="WhisperFactory"/> — the call that P/Invokes into whisper.cpp — and
 /// writes PASS / FAIL / SKIP to <c>%TEMP%\blurt-selftest.txt</c> with a matching
 /// exit code (0/1/2), then returns without starting the tray.
@@ -39,28 +40,38 @@ internal static class SelfTest
                 return;
             }
 
-            // Diagnose where the native whisper.dll actually lands at runtime. In a
-            // single-file self-extract build AppContext.BaseDirectory is the extraction
-            // dir; Whisper.net probes a runtimes/<rid>/native layout under it.
-            var baseDir = AppContext.BaseDirectory;
-            var candidates = new[]
-            {
-                Path.Combine(baseDir, "whisper.dll"),
-                Path.Combine(baseDir, "runtimes", "win-x64", "native", "whisper.dll"),
-            };
-            var found = candidates.FirstOrDefault(File.Exists);
-            var probe = string.Join("; ", candidates.Select(c => $"{c}={(File.Exists(c) ? "Y" : "n")}"));
+            // Exercise the same Vulkan-preferred order the app sets at startup (issue
+            // 42), so the smoke test loads the GPU backend when the box supports it and
+            // falls back to CPU otherwise — exactly the runtime path users get.
+            RuntimeOptions.RuntimeLibraryOrder = WhisperBackend.OrderFor(GpuPreference.Auto).ToList();
 
-            // If we located it, point Whisper.net straight at it (Context7: RuntimeOptions.LibraryPath).
-            if (found is not null)
-                RuntimeOptions.LibraryPath = found;
+            // Diagnose where the native whisper libs land at runtime. The CPU runtime
+            // (Whisper.net.Runtime) lands under runtimes/win-x64/; the Vulkan runtime
+            // (Whisper.net.Runtime.Vulkan, issue 46) lands under the DIFFERENT
+            // runtimes/vulkan/win-x64/ — including the ~55 MB ggml-vulkan-whisper.dll.
+            // Whisper.net's loader probes both from AppContext.BaseDirectory, so no
+            // explicit LibraryPath override is needed when the natives sit on disk
+            // (IncludeNativeLibrariesForSelfExtract=false).
+            var baseDir = AppContext.BaseDirectory;
+            var natives = new (string Label, string Path)[]
+            {
+                ("cpu", Path.Combine(baseDir, "runtimes", "win-x64", "whisper.dll")),
+                ("vulkan", Path.Combine(baseDir, "runtimes", "vulkan", "win-x64", "whisper.dll")),
+                ("vulkan-ggml", Path.Combine(baseDir, "runtimes", "vulkan", "win-x64", "ggml-vulkan-whisper.dll")),
+                ("loose", Path.Combine(baseDir, "whisper.dll")),
+            };
+            var probe = string.Join("; ", natives.Select(n => $"{n.Label}={(File.Exists(n.Path) ? "Y" : "n")}"));
 
             // FromPath + Build is the full native surface; if the libs didn't load
             // this throws (DllNotFoundException / BadImageFormatException).
             using var factory = WhisperFactory.FromPath(model);
             using var _ = factory.CreateBuilder().WithLanguage("auto").Build();
 
-            Write(log, $"PASS: native whisper loaded (LibraryPath={found ?? "<default probe>"}) | baseDir={baseDir} | probe[{probe}]", exitCode: 0);
+            // Which native backend actually loaded — the whole point of issue 46.
+            var loaded = RuntimeOptions.LoadedLibrary;
+            var backend = loaded is { } lib ? $"{WhisperBackend.Active(lib)} ({lib})" : "<unknown>";
+
+            Write(log, $"PASS: native whisper loaded | backend={backend} | baseDir={baseDir} | probe[{probe}]", exitCode: 0);
         }
         catch (Exception ex)
         {
@@ -71,7 +82,7 @@ internal static class SelfTest
             {
                 nativesSeen = string.Join(", ",
                     Directory.EnumerateFiles(baseDir, "*whisper*.dll", SearchOption.AllDirectories)
-                        .Select(p => p.Replace(baseDir, "")).Take(10));
+                        .Select(p => p.Replace(baseDir, "")).Take(20));
             }
             catch { nativesSeen = "(enumerate failed)"; }
 
