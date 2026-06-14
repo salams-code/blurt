@@ -666,6 +666,30 @@ internal sealed class TrayApplicationContext : ApplicationContext
             => Task.Run(() => inner.TranscribeAsync(wavAudio, ct), ct);
     }
 
+    /// <summary>
+    /// Times the local whisper decode and logs how long it took with the active
+    /// backend, so the GPU-vs-CPU speed difference (ADR-0001) is measurable from
+    /// blurt.log, not just felt. Wraps the local transcriber only — online
+    /// transcription is a network call, not a backend comparison.
+    /// </summary>
+    private sealed class TimedTranscriber(ITranscriber inner, RollingLog log) : ITranscriber
+    {
+        public async Task<string> TranscribeAsync(Stream wavAudio, CancellationToken ct = default)
+        {
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            try
+            {
+                return await inner.TranscribeAsync(wavAudio, ct);
+            }
+            finally
+            {
+                stopwatch.Stop();
+                var backend = TranscriptionBackendStatus.Current?.ToString() ?? "unknown";
+                log.Write($"Transcription took {stopwatch.ElapsedMilliseconds} ms (backend: {backend}).");
+            }
+        }
+    }
+
     // Where the OpenAI Whisper API lives. Transcription always targets the OpenAI
     // cloud (unlike refinement, whose base URL is user-configurable per provider):
     // the online option exists for lower latency, not for arbitrary endpoints.
@@ -682,7 +706,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
         TranscriberResolver.ResolveAsync(
             _settings.Load().Transcription,
             zeroNetwork,
-            local: async () => new OffloadedTranscriber(await GetTranscriberAsync()),
+            local: async () => new TimedTranscriber(
+                new OffloadedTranscriber(await GetTranscriberAsync()), _log),
             online: () => new OpenAiWhisper(
                 _httpClient, OpenAiTranscriptionBaseUrl, _settings.LoadApiKey() ?? ""));
 
