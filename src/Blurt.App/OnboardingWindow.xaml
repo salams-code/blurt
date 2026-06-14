@@ -74,18 +74,18 @@
             <StackPanel x:Name="ApiKeyPanel" Visibility="Collapsed">
                 <TextBlock Style="{StaticResource StepTitle}" Text="Choose your refinement provider (optional)" />
                 <TextBlock Style="{StaticResource StepSubtitle}"
-                           Text="Refinement (Fix, English, Bullets) runs through an OpenAI-compatible endpoint. Use the OpenAI cloud with a key, or a local/Ollama endpoint with no key. You can skip this entirely — dictation still works offline and falls back to the raw transcript." />
+                           Text="Refinement (Fix, English, Bullets) runs through any OpenAI-compatible endpoint — the OpenAI cloud, your own server, or a local one like Ollama. Just pick whether it needs an API key. You can skip this entirely — dictation still works offline and falls back to the raw transcript." />
                 <Border Style="{StaticResource Card}">
                     <StackPanel>
                         <RadioButton x:Name="OpenAiProviderRadio"
                                      GroupName="Provider"
-                                     Content="OpenAI cloud (use an API key)"
+                                     Content="With an API key — OpenAI, OpenRouter, or your own server"
                                      IsChecked="True"
                                      Checked="OnProviderChoiceChanged" />
                         <RadioButton x:Name="LocalProviderRadio"
                                      GroupName="Provider"
                                      Margin="0,8,0,0"
-                                     Content="Local / Ollama (OpenAI-compatible, no key)"
+                                     Content="No key — Ollama, LM Studio, or a server on your network"
                                      Checked="OnProviderChoiceChanged" />
                     </StackPanel>
                 </Border>
@@ -111,13 +111,13 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Local sub-step: point at the Ollama endpoint, no key needed -->
+                <!-- No-key sub-step: point at a keyless OpenAI-compatible endpoint -->
                 <Border x:Name="LocalEndpointCard" Style="{StaticResource Card}" Visibility="Collapsed">
                     <StackPanel>
-                        <TextBlock FontWeight="SemiBold" Margin="0,0,0,8" Text="Local / Ollama endpoint"
+                        <TextBlock FontWeight="SemiBold" Margin="0,0,0,8" Text="Keyless endpoint (e.g. Ollama)"
                                    Foreground="{DynamicResource TextPrimaryBrush}" />
                         <TextBlock Style="{StaticResource BodyText}" Margin="0,1,0,12"
-                                   Text="Run an OpenAI-compatible server (e.g. Ollama) and point Blurt at it. No API key is needed; any stored key is kept but not sent." />
+                                   Text="Run an OpenAI-compatible server (e.g. Ollama, LM Studio) and point Blurt at it. No API key is needed; any stored key is kept but not sent." />
                         <TextBlock Style="{StaticResource FieldLabel}" Text="Base URL" Margin="0,0,0,6" />
                         <TextBox x:Name="LocalBaseUrlBox" Text="http://localhost:11434/v1" />
                         <TextBlock x:Name="LocalHint"
