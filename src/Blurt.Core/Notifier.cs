@@ -66,6 +66,8 @@ public static class DictationNotices
             new DictationNotice("Refinement offline — raw text inserted.", NoticeLevel.Warning),
         DictationOutcome.InjectionBlocked =>
             new DictationNotice("Couldn't paste — text left on clipboard.", NoticeLevel.Warning),
+        // Issue 47: a deliberate cancel is a clean abort — silent, like Injected.
+        DictationOutcome.Cancelled => null,
         _ => null,
     };
 }
