@@ -37,6 +37,25 @@
     <ProjectReference Include="..\Blurt.Core\Blurt.Core.csproj" />
   </ItemGroup>
 
+  <!-- Trim native runtimes for RIDs this win-x64 portable can't use (ADR-0001, issue
+       46). The Whisper.net runtime .targets force-copy every RID's natives regardless
+       of the publish RID — including a ~58 MB linux-x64 ggml-vulkan .so — which on a
+       single-file win-x64 self-contained build is dead weight that nearly doubles the
+       artifact (~120 MB → ~190 MB). Keep only runtimes/win-x64 (CPU) and
+       runtimes/vulkan/win-x64 (the GPU natives the app actually loads). Scoped to a
+       win-x64 publish so a future win-arm64 build keeps its own natives. -->
+  <Target Name="TrimForeignRuntimeNatives" AfterTargets="Publish"
+          Condition="'$(RuntimeIdentifier)' == 'win-x64'">
+    <ItemGroup>
+      <_ForeignRuntimeFile Include="$(PublishDir)runtimes\win-arm64\**\*" />
+      <_ForeignRuntimeFile Include="$(PublishDir)runtimes\win-x86\**\*" />
+      <_ForeignRuntimeFile Include="$(PublishDir)runtimes\browser\**\*" />
+      <_ForeignRuntimeFile Include="$(PublishDir)runtimes\vulkan\linux-x64\**\*" />
+    </ItemGroup>
+    <Delete Files="@(_ForeignRuntimeFile)" />
+    <RemoveDir Directories="$(PublishDir)runtimes\win-arm64;$(PublishDir)runtimes\win-x86;$(PublishDir)runtimes\browser;$(PublishDir)runtimes\vulkan\linux-x64" />
+  </Target>
+
   <ItemGroup>
     <!-- WMI (Win32_VideoController) for the driver-missing nudge signal (issue 45):
          detect when Windows is on the "Microsoft Basic Display Adapter" fallback. -->
