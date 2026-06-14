@@ -67,8 +67,13 @@
       "Bash(wc*)"
     ],
     "deny": [
-      "Bash(git push*)",
-      "PowerShell(git push*)"
+      "Bash(git push*main*)",
+      "PowerShell(git push*main*)"
+    ],
+    "ask": [
+      "PowerShell(& \"$env:LOCALAPPDATA\\Programs\\gh-cli\\bin\\gh.exe\" pr merge*)",
+      "PowerShell(& \"$env:LOCALAPPDATA\\Programs\\gh-cli\\bin\\gh.exe\" repo edit*)",
+      "PowerShell(& \"$env:LOCALAPPDATA\\Programs\\gh-cli\\bin\\gh.exe\" api*)"
     ]
   }
 }
