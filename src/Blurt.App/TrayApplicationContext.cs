@@ -83,6 +83,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
     // guarantees both share the one instance the warmup heats up.
     private readonly object _transcriberGate = new();
 
+    // Marshals the warmup probe's background-thread driver nudge (issue 45) onto the
+    // UI thread, where the tray balloon and the config write must run. A handle-only
+    // control created on the UI thread at construction; never shown.
+    private readonly Control _uiMarshal = new();
+
     public TrayApplicationContext()
     {
         var menu = new ContextMenuStrip();
@@ -158,6 +163,10 @@ internal sealed class TrayApplicationContext : ApplicationContext
         // gets the configured VK→trigger map, falling back to defaults for any
         // missing/garbage entry, so a remapped chord works from launch.
         _keyboardHook = InstallHook(config);
+
+        // Create the marshal control's handle on this (UI) thread so the warmup probe
+        // can BeginInvoke its driver nudge back here (issue 45). Never shown.
+        _ = _uiMarshal.Handle;
 
         // Eager warmup probe (issue 43): build the WhisperFactory in the background so
         // the first dictation reuses it (no second model load) and the one-time Vulkan
@@ -676,12 +685,14 @@ internal sealed class TrayApplicationContext : ApplicationContext
     // Best-effort: a failure here must never block the tray or crash the app.
     private async Task WarmUpBackendAsync()
     {
+        var probed = false;
         try
         {
             // Only warm up when a model is already on disk — never trigger the
             // first-run download from a background probe (ADR-0001: the model is a
             // separate first-run fetch). Without one the active backend stays
-            // "pending" until the first dictation builds the factory.
+            // "pending" until the first dictation builds the factory, and the driver
+            // nudge waits until then too (no premature first-launch popup).
             var provisioner = new ModelProvisioner(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                 new GgmlModelDownloader());
@@ -692,6 +703,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
             var transcriber = await GetTranscriberAsync();
             await transcriber.EnsureFactoryAsync();
+            probed = true;
         }
         catch
         {
@@ -703,6 +715,77 @@ internal sealed class TrayApplicationContext : ApplicationContext
             // ADR-0001 defers that to a crash-proof subprocess probe.
             try { RuntimeOptions.RuntimeLibraryOrder = WhisperBackend.OrderFor(GpuPreference.Off).ToList(); }
             catch { /* nothing more we can safely do from a background probe */ }
+            probed = true;   // we attempted a build; Vulkan did not load → the nudge may apply
+        }
+
+        // Evaluate the one-time driver-missing nudge once the probe has actually run
+        // (issue 45) — so "Vulkan did not load" reflects a real attempt, not the
+        // no-model-yet case.
+        if (probed)
+        {
+            EvaluateDriverNudgeAfterProbe();
+        }
+    }
+
+    // The one-time, dismissible driver-missing nudge (issue 45). Runs on the warmup
+    // probe's background thread: the WMI query (DisplayAdapter) and Core's pure
+    // DriverNudge.ShouldShow decision happen off the UI thread; only the tray notice
+    // and the dismissal write are marshaled back to it. Conservative by design — it
+    // fires only when Windows is on the basic-display fallback AND Vulkan did not load
+    // AND it hasn't been shown before. Best-effort: a failure must never surface.
+    private void EvaluateDriverNudgeAfterProbe()
+    {
+        try
+        {
+            var config = _settings.Load();
+            if (config.GpuDriverNudgeDismissed)
+            {
+                return;   // one-time: already shown and dismissed
+            }
+
+            var driverMissing = DisplayAdapter.IsBasicDisplayAdapterActive();
+            if (!DriverNudge.ShouldShow(driverMissing, TranscriptionBackendStatus.VulkanLoaded, config.GpuDriverNudgeDismissed))
+            {
+                return;
+            }
+
+            MarshalToUi(() =>
+            {
+                _notifier.Notify(
+                    "Graphics driver looks missing — Blurt is transcribing on CPU. " +
+                    "Install or repair your GPU driver for faster GPU (Vulkan) transcription.",
+                    NoticeLevel.Info);
+
+                // Persist the one-time dismissal so the nudge never shows again. Re-load
+                // first so a settings save during the probe window isn't clobbered.
+                _settings.Save(_settings.Load() with { GpuDriverNudgeDismissed = true });
+            });
+        }
+        catch
+        {
+            // The nudge is best-effort diagnostics; a failure must never crash the app.
+        }
+    }
+
+    // Run an action on the UI thread (where the tray icon lives), from any thread,
+    // via the handle-only marshal control. Fail-soft: a marshaling failure (e.g. the
+    // handle is gone during shutdown) is dropped rather than thrown.
+    private void MarshalToUi(Action action)
+    {
+        try
+        {
+            if (_uiMarshal.IsHandleCreated && _uiMarshal.InvokeRequired)
+            {
+                _uiMarshal.BeginInvoke(action);
+            }
+            else
+            {
+                action();
+            }
+        }
+        catch
+        {
+            /* marshaling failed during teardown — drop the best-effort nudge */
         }
     }
 
@@ -975,6 +1058,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             _overlay.Dispose();        // close the WPF overlay window (issue 06)
             _trayIcon.Dispose();
             _trayIcons.Dispose();      // free the generated tray icon GDI handles (issue 06)
+            _uiMarshal.Dispose();      // release the handle-only marshal window (issue 45)
         }
 
         base.Dispose(disposing);

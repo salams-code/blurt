@@ -38,6 +38,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- WMI (Win32_VideoController) for the driver-missing nudge signal (issue 45):
+         detect when Windows is on the "Microsoft Basic Display Adapter" fallback. -->
+    <PackageReference Include="System.Management" Version="8.0.0" />
     <PackageReference Include="NAudio" Version="2.3.0" />
     <PackageReference Include="Whisper.net" Version="1.9.1" />
     <PackageReference Include="Whisper.net.Runtime" Version="1.9.1" />

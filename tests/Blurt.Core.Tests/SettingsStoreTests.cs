@@ -56,6 +56,10 @@ public class SettingsStoreTests
             {
                 Transcription = TranscriptionMode.Online,
                 WhisperModel = new WhisperModel("base", "q5_1"),
+                // GPU acceleration preference (issue 42) and the one-time driver-nudge
+                // dismissal flag (issue 45) must round-trip too.
+                GpuPreference = GpuPreference.Off,
+                GpuDriverNudgeDismissed = true,
                 RefinementProvider = RefinementProvider.LocalOpenAiCompatible,
                 RefinementBaseUrl = "http://localhost:11434/v1",
                 RefinementModel = "llama3.1",

@@ -221,6 +221,15 @@ public sealed record BlurtConfig
     /// </summary>
     public string InputDeviceName { get; init; } = "";
 
+    /// <summary>
+    /// Whether the one-time driver-missing nudge (issue 45) has already been shown and
+    /// dismissed. Persisted so the conservative "install/repair your GPU driver" notice
+    /// fires at most once across launches. Defaults to <c>false</c> (never shown yet);
+    /// a config written before this setting existed has no key for it and resolves to
+    /// false, so an eligible machine still gets the one nudge after upgrade.
+    /// </summary>
+    public bool GpuDriverNudgeDismissed { get; init; } = false;
+
     /// <summary>The fully-defaulted configuration used when no config file exists yet.</summary>
     public static BlurtConfig Default { get; } = new();
 
@@ -248,6 +257,7 @@ public sealed record BlurtConfig
             && OverlayAnchor == other.OverlayAnchor
             && SoundEnabled == other.SoundEnabled
             && OnboardingCompleted == other.OnboardingCompleted
+            && GpuDriverNudgeDismissed == other.GpuDriverNudgeDismissed
             && InputDeviceMode == other.InputDeviceMode
             && InputDeviceName == other.InputDeviceName
             && HotkeyBindingsEqual(HotkeyBindings, other.HotkeyBindings)
@@ -273,6 +283,7 @@ public sealed record BlurtConfig
         hash.Add(OverlayAnchor);
         hash.Add(SoundEnabled);
         hash.Add(OnboardingCompleted);
+        hash.Add(GpuDriverNudgeDismissed);
         hash.Add(InputDeviceMode);
         hash.Add(InputDeviceName);
         foreach (var binding in HotkeyBindings.OrderBy(b => b.Key))
