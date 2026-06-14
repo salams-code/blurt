@@ -124,6 +124,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
             Visible = true,
             ContextMenuStrip = menu,
         };
+
+        // Double-clicking the tray icon opens Settings — the conventional default
+        // action for a tray app, so it's not always right-click → "Settings…".
+        _trayIcon.DoubleClick += (_, _) => OpenSettings();
+
         _notifier = new TrayNotifier(_trayIcon);
 
         // 300 ms gives the focused app time to consume the Ctrl+V before the
