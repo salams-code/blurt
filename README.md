@@ -96,7 +96,7 @@ there in context.
 Blurt ships as a **portable, self-contained folder** — no installer, no admin
 rights, no Program Files, no .NET install required.
 
-1. Download `Blurt-0.1.0-win-x64.zip` from the
+1. Download `Blurt-0.2.0-win-x64.zip` from the
    [latest release](https://github.com/salams-code/blurt/releases/latest) and
    unzip the `Blurt` folder anywhere (e.g. `C:\Tools\Blurt`).
 2. Double-click `Blurt.exe`.
