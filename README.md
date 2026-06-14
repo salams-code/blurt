@@ -91,6 +91,35 @@ non-standard combinations (which then show up as "Custom"). Picking a tier that
 sends audio or text to OpenAI makes the API-key requirement explicit right
 there in context.
 
+## Speed — local transcription on the GPU
+
+Local transcription runs on your **GPU by default**. Blurt ships the **Vulkan**
+whisper runtime and selects it automatically (*GPU acceleration: Auto* in
+Settings), falling back to the CPU on machines without a Vulkan driver — no
+configuration needed. Even a low-power **integrated** GPU makes local dictation
+fast enough to feel instant, and competitive with the cloud.
+
+Rough timings for one ~15-second German dictation on a laptop with an AMD Ryzen 7
+4700U and its **integrated** Radeon (Vega) GPU — no discrete graphics card. Single
+live runs, so treat these as ballpark, not a benchmark suite:
+
+| Transcription                       | Time     | Your voice      |
+|-------------------------------------|----------|-----------------|
+| Local · `small` · CPU               | ~14 s    | stays offline   |
+| Local · `small` · **GPU (Vulkan)**  | **~3 s** | stays offline   |
+| Local · `large-v3-turbo` · **GPU**  | ~15 s    | stays offline   |
+| Cloud · OpenAI `whisper-1`          | ~6 s     | leaves your PC  |
+
+- On this integrated GPU the `small` model on Vulkan (~3 s) is **faster than the
+  cloud round-trip** (~6 s) — and your audio never leaves the machine.
+- The larger `large-v3-turbo` reaches cloud-grade accuracy fully locally; the GPU
+  brings it down to about the time the `small` model needs on the CPU.
+- Vulkan is roughly **3.5–4× faster than the CPU** here; a discrete GPU widens the
+  gap further.
+
+So "keep your voice on your machine" no longer means "wait longer." If your box
+has no Vulkan driver, Blurt silently uses the CPU and everything still works.
+
 ## Install
 
 Blurt ships as a **portable, self-contained folder** — no installer, no admin
@@ -198,7 +227,7 @@ A few deliberate technical choices:
 ### Tech stack
 
 .NET 8 / C# · WPF (settings + overlay) · WinForms `NotifyIcon` (tray) ·
-[Whisper.net](https://github.com/sandrohanea/whisper.net) (local transcription) ·
+[Whisper.net](https://github.com/sandrohanea/whisper.net) (local transcription, Vulkan GPU with CPU fallback) ·
 [NAudio](https://github.com/naudio/NAudio) (audio) · `System.Net.Http` for the
 OpenAI-compatible refinement endpoint.
 
