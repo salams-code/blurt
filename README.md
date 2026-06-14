@@ -37,19 +37,28 @@ Push-to-talk on three global hotkeys (all remappable in Settings):
 | `AltGr + .` | **English** | Your speech translated to English                                 |
 | `AltGr + -` | **Flex slot** | A cyclable slot — **tap** to switch its mode, **hold** to dictate |
 
-The **flex slot** cycles through three modes when you tap it (an overlay pill
+The **flex slot** cycles through four modes when you tap it (an overlay pill
 shows you the current one):
 
 - **Pur** — verbatim transcription, **no LLM call, zero network**. The only
   fully offline mode.
 - **Bullets** — your dictation reformatted into clean bullet points.
-- **Custom** — your own prompt, defined in Settings (e.g. "rewrite as a polite
-  email", "summarize in one sentence").
+- **Custom** — your own prompt, defined in Settings (e.g. "summarize in one
+  sentence", "rewrite in a friendly tone").
+- **Email** — turns conversational speech into a well-formed email (greeting,
+  body, sign-off). Talk the way you'd talk to a person; out comes the email.
 
 **Tap vs. hold:** a quick tap (under ~250 ms, configurable) on the flex key
 cycles its mode; holding it longer records a dictation. The trigger keystroke is
 swallowed, so the AltGr special character (`@ € { [` …) never leaks into your
 text.
+
+**Also translate to English:** hold **Shift** together with any trigger chord
+(e.g. `AltGr + Shift + ,`) and the output is *also* translated to English,
+layered on top of the active mode — Fix becomes cleaned-up English, Bullets
+become English bullets, an Email becomes an English email. It's a per-dictation
+decision (nothing is saved), and it composes with any refined mode. **Pur is
+exempt** — the verbatim local path stays zero-network even with Shift held.
 
 ## Privacy — own your voice
 
@@ -143,7 +152,10 @@ Everything is in the **Settings** window (right-click the tray icon → Settings
   remote Ollama box (`http://<host>:11434/v1`) to run refinement on your own
   hardware instead — **no code change needed**, the same client speaks both.
 - **Hotkeys** — remap the three bindings and the flex-slot mode order.
-- **Custom prompt** — the prompt used by the flex slot's Custom mode.
+- **Mode prompts** — edit the system prompt each refined mode uses (Fix,
+  English, Bullets, Email, and the flex slot's Custom mode). One button resets
+  them all to the shipped defaults; your previous wording is backed up first, so
+  you can copy or restore it (Pur has no prompt — it's always verbatim).
 - **Start with Windows** — optionally launch Blurt automatically at login (a
   per-user entry, no admin; re-toggle it if you move the Blurt folder).
 - **Overlay & sound** — overlay anchor, and an optional start/stop sound (off by
