@@ -3,6 +3,14 @@
 Native Windows tray app for push-to-talk voice dictation (.NET 8 / C#).
 Design contract: [docs/superpowers/specs/2026-06-09-blurt-windows-design.md](docs/superpowers/specs/2026-06-09-blurt-windows-design.md).
 
+## Contributing workflow
+
+New features and fixes go on a **feature branch** (`feat/...`, `fix/...`, `chore/...`)
+and reach `main` via a **pull request** — never commit or push directly to `main`. Keep
+`main` releasable at all times, and review the PR diff (e.g. `/code-review`) before
+merging. `main` is branch-protected on GitHub: direct pushes are rejected, so changes
+must go through a PR (a solo merge needs no approval).
+
 ## Build & test
 
 The `dotnet` on PATH (`C:\Program Files\dotnet`) is runtime-only — no SDK. Use the user-profile SDK instead:
