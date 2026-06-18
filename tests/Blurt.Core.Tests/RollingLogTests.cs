@@ -109,4 +109,112 @@ public class RollingLogTests
             Directory.Delete(dir, recursive: true);
         }
     }
+
+    [Fact]
+    public void PruneOlderThan_drops_entries_past_the_retention_window_and_keeps_recent_ones()
+    {
+        var dir = Directory.CreateTempSubdirectory("blurt-log-").FullName;
+        try
+        {
+            var path = Path.Combine(dir, "blurt.log");
+            // Two records with explicit timestamps: one old, one recent (the format
+            // matches what Write emits — "yyyy-MM-dd HH:mm:ss.fff message").
+            File.WriteAllText(
+                path,
+                "2026-06-01 09:00:00.000 old entry" + Environment.NewLine +
+                "2026-06-18 19:00:00.000 recent entry" + Environment.NewLine);
+            var log = new RollingLog(path);
+
+            // 14-day window relative to a fixed "now" → cutoff 2026-06-04.
+            log.PruneOlderThan(TimeSpan.FromDays(14), new DateTime(2026, 6, 18, 20, 0, 0));
+
+            var text = File.ReadAllText(path);
+            Assert.DoesNotContain("old entry", text);
+            Assert.Contains("recent entry", text);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void PruneOlderThan_keeps_or_drops_a_multiline_record_as_a_unit()
+    {
+        // A crash entry spans several lines: only the first carries a timestamp, the
+        // stack-trace lines follow without one. Pruning must treat the whole record
+        // as a unit — never orphan a kept stack onto a dropped header, or vice versa.
+        var dir = Directory.CreateTempSubdirectory("blurt-log-").FullName;
+        try
+        {
+            var path = Path.Combine(dir, "blurt.log");
+            File.WriteAllText(
+                path,
+                "2026-06-01 09:00:00.000 FATAL: old crash" + Environment.NewLine +
+                "   at Old.Method()" + Environment.NewLine +
+                "2026-06-18 19:00:00.000 FATAL: recent crash" + Environment.NewLine +
+                "   at Recent.Method()" + Environment.NewLine);
+            var log = new RollingLog(path);
+
+            log.PruneOlderThan(TimeSpan.FromDays(14), new DateTime(2026, 6, 18, 20, 0, 0));
+
+            var text = File.ReadAllText(path);
+            Assert.DoesNotContain("old crash", text);
+            Assert.DoesNotContain("Old.Method", text);     // continuation of the dropped record
+            Assert.Contains("recent crash", text);
+            Assert.Contains("Recent.Method", text);          // continuation of the kept record
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void PruneOlderThan_also_prunes_the_backup_file()
+    {
+        var dir = Directory.CreateTempSubdirectory("blurt-log-").FullName;
+        try
+        {
+            var path = Path.Combine(dir, "blurt.log");
+            File.WriteAllText(
+                path + ".1",
+                "2026-06-01 09:00:00.000 old backup entry" + Environment.NewLine);
+            File.WriteAllText(
+                path,
+                "2026-06-18 19:00:00.000 recent entry" + Environment.NewLine);
+            var log = new RollingLog(path);
+
+            log.PruneOlderThan(TimeSpan.FromDays(14), new DateTime(2026, 6, 18, 20, 0, 0));
+
+            // The backup was entirely old → removed; the active file's recent line stays.
+            Assert.False(File.Exists(log.BackupPath));
+            Assert.Contains("recent entry", File.ReadAllText(path));
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void PruneOlderThan_never_throws_when_the_log_does_not_exist()
+    {
+        // Mirrors Write's contract: prune runs at startup and must never become a
+        // crash. A missing file (fresh install) is a no-op, not an exception.
+        var dir = Directory.CreateTempSubdirectory("blurt-log-").FullName;
+        try
+        {
+            var log = new RollingLog(Path.Combine(dir, "missing", "blurt.log"));
+
+            var ex = Record.Exception(
+                () => log.PruneOlderThan(TimeSpan.FromDays(14), new DateTime(2026, 6, 18, 20, 0, 0)));
+
+            Assert.Null(ex);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
 }

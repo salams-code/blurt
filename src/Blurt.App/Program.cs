@@ -4,6 +4,10 @@ namespace Blurt.App;
 
 internal static class Program
 {
+    // How long a log entry is kept before startup prunes it (the size cap is the
+    // separate hard ceiling). 14 days is enough history to diagnose a recent issue.
+    private const int LogRetentionDays = 14;
+
     [STAThread]
     private static void Main()
     {
@@ -57,6 +61,12 @@ internal static class Program
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             AppInfo.Name, "logs", "blurt.log");
         var log = new RollingLog(path);
+
+        // Drop entries older than the retention window before this session starts.
+        // The log is already size-capped (~1 MB), but at typical use that's months of
+        // history; an age cap keeps usage metadata from lingering. Best-effort — the
+        // log only holds timings/lifecycle/diagnostics, never dictated text.
+        log.PruneOlderThan(TimeSpan.FromDays(LogRetentionDays));
 
         var version = typeof(Program).Assembly.GetName().Version?.ToString() ?? "?";
         log.Write($"=== {AppInfo.Name} {version} started (pid {Environment.ProcessId}) ===");

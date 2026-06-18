@@ -69,19 +69,22 @@ public sealed class DictationPipeline
     private readonly Func<string, CancellationToken, Task<string>>? _refine;
     private readonly Action<string>? _onResult;
     private readonly Func<Stream, CancellationToken, Task<string>>? _transcribeFallback;
+    private readonly Action<string>? _reportDegraded;
 
     public DictationPipeline(
         ITranscriber transcriber,
         ITextInjector injector,
         Func<string, CancellationToken, Task<string>>? refine = null,
         Action<string>? onResult = null,
-        Func<Stream, CancellationToken, Task<string>>? transcribeFallback = null)
+        Func<Stream, CancellationToken, Task<string>>? transcribeFallback = null,
+        Action<string>? reportDegraded = null)
     {
         _transcriber = transcriber;
         _injector = injector;
         _refine = refine;
         _onResult = onResult;
         _transcribeFallback = transcribeFallback;
+        _reportDegraded = reportDegraded;
     }
 
     /// <summary>
@@ -108,7 +111,7 @@ public sealed class DictationPipeline
             // clean cancel is never masked as TranscriptionFailed.
             return DictationOutcome.Cancelled;
         }
-        catch
+        catch (Exception primaryEx)
         {
             // Fail-soft (design §10): a failed transcription is a notice, not a
             // crash. Issue 30: when an offline fallback is wired (Online source),
@@ -117,6 +120,7 @@ public sealed class DictationPipeline
             // that also fails) this stays a TranscriptionFailed notice.
             if (_transcribeFallback is null)
             {
+                Report($"Transcription failed: {ExceptionLogFormat.Summarize(primaryEx, includeStackTrace: false)}");
                 return DictationOutcome.TranscriptionFailed;
             }
 
@@ -131,6 +135,11 @@ public sealed class DictationPipeline
 
                 text = await _transcribeFallback(wavAudio, ct);
                 transcribedOffline = true;
+
+                // The dictation survived, but the user got a degraded (local) result
+                // because the cloud failed — that "why" is worth a log line.
+                Report($"Cloud transcription failed; recovered via local fallback: " +
+                       $"{ExceptionLogFormat.Summarize(primaryEx, includeStackTrace: false)}");
             }
             catch (OperationCanceledException)
             {
@@ -139,8 +148,10 @@ public sealed class DictationPipeline
                 // clean cancel isn't masked as TranscriptionFailed.
                 return DictationOutcome.Cancelled;
             }
-            catch
+            catch (Exception fallbackEx)
             {
+                Report($"Transcription failed (cloud and local fallback): " +
+                       $"{ExceptionLogFormat.Summarize(fallbackEx, includeStackTrace: false)}");
                 return DictationOutcome.TranscriptionFailed;
             }
         }
@@ -175,8 +186,13 @@ public sealed class DictationPipeline
                 // still degrades to RefinedOffline below.
                 return DictationOutcome.Cancelled;
             }
-            catch
+            catch (Exception refineEx)
             {
+                // The transcript survived but reached the cursor unrefined. This used
+                // to vanish silently (only a transient toast) — report the reason so
+                // "why did I get raw text?" is answerable from the log.
+                Report($"Refinement failed (raw transcript inserted): " +
+                       $"{ExceptionLogFormat.Summarize(refineEx, includeStackTrace: false)}");
                 refinedOffline = true;
             }
         }
@@ -223,6 +239,21 @@ public sealed class DictationPipeline
         }
 
         return refinedOffline ? DictationOutcome.RefinedOffline : DictationOutcome.Injected;
+    }
+
+    // Surface a degraded-but-recovered reason to the optional sink (the app writes
+    // it to the rolling log). Swallows a faulty sink: logging why a dictation
+    // degraded must never itself turn a recovered dictation into a failure.
+    private void Report(string reason)
+    {
+        try
+        {
+            _reportDegraded?.Invoke(reason);
+        }
+        catch
+        {
+            // Best-effort diagnostics only.
+        }
     }
 
     // Whisper never returns an empty string for silence or background noise; it

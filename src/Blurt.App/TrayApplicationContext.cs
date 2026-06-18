@@ -513,7 +513,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
             var pipeline = new DictationPipeline(
                 transcriber,
                 _textInjector,
-                onResult: _recentDictations.Add);   // issue 26: recoverable history
+                onResult: _recentDictations.Add,    // issue 26: recoverable history
+                reportDegraded: _log.Write);          // log why a dictation degraded
 
             var outcome = await pipeline.RunAsync(audio, cancel.Token);
 
@@ -633,7 +634,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
                     return refiner.RefineAsync(text, systemPrompt, ct);
                 },
                 onResult: _recentDictations.Add,   // issue 26: recoverable history
-                transcribeFallback: BuildLocalFallback());   // issue 30: Online → local when offline
+                transcribeFallback: BuildLocalFallback(),    // issue 30: Online → local when offline
+                reportDegraded: _log.Write);          // log a failed/offline refine or transcription
 
             var outcome = await pipeline.RunAsync(audio, cancel.Token);
 
