@@ -13,6 +13,9 @@ namespace Blurt.App;
 internal sealed class TrayApplicationContext : ApplicationContext
 {
     private readonly NotifyIcon _trayIcon;
+    // Left-click flyout listing recent dictations (a quicker path than the
+    // right-click submenu). Rebuilt on each open so it always reflects the history.
+    private readonly ContextMenuStrip _recentFlyout = new();
 
     // Status feedback (issue 06): the click-through overlay pill and the colour-
     // coded tray icons, both driven from Core's pure OverlayState/TrayState/
@@ -176,6 +179,19 @@ internal sealed class TrayApplicationContext : ApplicationContext
         // Double-clicking the tray icon opens Settings — the conventional default
         // action for a tray app, so it's not always right-click → "Settings…".
         _trayIcon.DoubleClick += (_, _) => OpenSettings();
+
+        // Left-clicking the tray icon shows the recent dictations directly — a
+        // quicker path than right-click → "Recent dictations" submenu. Right-click
+        // still opens the full menu. The flyout is rebuilt on each open so it always
+        // reflects the current history.
+        _recentFlyout.Opening += (_, _) => PopulateRecentDictationsInto(_recentFlyout.Items);
+        _trayIcon.MouseUp += (_, e) =>
+        {
+            if (e.Button == MouseButtons.Left)
+            {
+                _recentFlyout.Show(System.Windows.Forms.Cursor.Position);
+            }
+        };
 
         _notifier = new TrayNotifier(_trayIcon);
 
@@ -1009,12 +1025,18 @@ internal sealed class TrayApplicationContext : ApplicationContext
     // pastes it where they actually want it, instead of a blind re-inject into
     // whatever happens to have focus now).
     private void PopulateRecentDictations(ToolStripMenuItem recentMenu)
+        => PopulateRecentDictationsInto(recentMenu.DropDownItems);
+
+    // Fill a menu collection with the current ring-buffer contents — shared by the
+    // right-click "Recent dictations" submenu and the left-click flyout, so both
+    // always show the same up-to-date list and behave identically on click.
+    private void PopulateRecentDictationsInto(ToolStripItemCollection items)
     {
-        recentMenu.DropDownItems.Clear();
+        items.Clear();
 
         if (_recentDictations.Items.Count == 0)
         {
-            recentMenu.DropDownItems.Add(new ToolStripMenuItem("(no dictations yet)")
+            items.Add(new ToolStripMenuItem("(no dictations yet)")
             {
                 Enabled = false,
             });
@@ -1024,7 +1046,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         foreach (var text in _recentDictations.Items)
         {
             var captured = text;   // each click copies its own entry
-            recentMenu.DropDownItems.Add(new ToolStripMenuItem(
+            items.Add(new ToolStripMenuItem(
                 RecentDictations.Preview(captured),
                 image: null,
                 (_, _) => CopyToClipboard(captured)));
@@ -1202,6 +1224,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             _httpClient.Dispose();     // close the refiner's pooled connections
             _overlay.Dispose();        // close the WPF overlay window (issue 06)
             _trayIcon.Dispose();
+            _recentFlyout.Dispose();   // free the left-click flyout's GDI handles
             _trayIcons.Dispose();      // free the generated tray icon GDI handles (issue 06)
             _uiMarshal.Dispose();      // release the handle-only marshal window (issue 45)
         }
