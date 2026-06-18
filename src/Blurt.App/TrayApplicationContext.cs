@@ -1,4 +1,5 @@
 using System.Net.Http;
+using System.Runtime.InteropServices;
 using Blurt.Core;
 using Whisper.net.LibraryLoader;
 
@@ -189,6 +190,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             if (e.Button == MouseButtons.Left)
             {
+                // Anchor the foreground to our hidden UI-marshal window before showing
+                // the flyout. Without this, a menu shown from a tray icon briefly
+                // surfaces its own top-level window in the taskbar/Alt-Tab and doesn't
+                // dismiss cleanly on an outside click — the documented tray-menu fix.
+                SetForegroundWindow(_uiMarshal.Handle);
                 _recentFlyout.Show(System.Windows.Forms.Cursor.Position);
             }
         };
@@ -1214,6 +1220,12 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _trayIcon.Visible = false;
         Application.Exit();
     }
+
+    // Used to anchor the foreground window before showing the left-click flyout, so
+    // a tray-spawned menu doesn't flash a phantom taskbar window or fail to dismiss.
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
 
     protected override void Dispose(bool disposing)
     {
