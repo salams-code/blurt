@@ -18,10 +18,17 @@ public static class ExceptionLogFormat
 
     /// <summary>
     /// A curated, log-safe rendering of <paramref name="exception"/> and its inner
-    /// chain. Each exception contributes its type, a message truncated to
-    /// <paramref name="maxMessageLength"/>, and its stack trace (when present).
+    /// chain. Each exception contributes its type and a message truncated to
+    /// <paramref name="maxMessageLength"/>; the stack trace (when present) is
+    /// appended only when <paramref name="includeStackTrace"/> is set. Crash logging
+    /// keeps the stack (the default); a degraded-but-recovered notice (refiner
+    /// offline, transcription retried) drops it for a compact one-line reason — the
+    /// type and message already say what failed.
     /// </summary>
-    public static string Summarize(Exception exception, int maxMessageLength = DefaultMaxMessageLength)
+    public static string Summarize(
+        Exception exception,
+        int maxMessageLength = DefaultMaxMessageLength,
+        bool includeStackTrace = true)
     {
         var sb = new StringBuilder();
         Exception? current = exception;
@@ -38,7 +45,7 @@ public static class ExceptionLogFormat
               .Append(": ")
               .Append(Truncate(current.Message, maxMessageLength));
 
-            if (!string.IsNullOrEmpty(current.StackTrace))
+            if (includeStackTrace && !string.IsNullOrEmpty(current.StackTrace))
             {
                 sb.Append(Environment.NewLine).Append(current.StackTrace);
             }

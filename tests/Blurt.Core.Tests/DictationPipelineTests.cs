@@ -440,6 +440,95 @@ public class DictationPipelineTests
         Assert.Null(recorded);
     }
 
+    [Fact]
+    public async Task A_failing_refinement_reports_the_reason_so_a_silent_degrade_is_diagnosable()
+    {
+        // The gap this closes: a refiner failure degrades to the raw transcript but
+        // left no trace, so "why did I get unrefined text?" was unanswerable. The
+        // pipeline now reports a concise reason the app layer writes to the log.
+        var transcriber = new FakeTranscriber { Text = "ähm hallo welt" };
+        var injector = new RecordingInjector();
+        var reasons = new List<string>();
+        var pipeline = new DictationPipeline(
+            transcriber,
+            injector,
+            refine: (_, _) => Task.FromException<string>(
+                new HttpRequestException("connection refused")),
+            reportDegraded: reasons.Add);
+
+        var outcome = await pipeline.RunAsync(Audio());
+
+        Assert.Equal(DictationOutcome.RefinedOffline, outcome);
+        var reason = Assert.Single(reasons);
+        Assert.Contains("Refinement", reason);
+        Assert.Contains("connection refused", reason);
+    }
+
+    [Fact]
+    public async Task A_failing_transcription_with_no_fallback_reports_the_reason()
+    {
+        var transcriber = new FakeTranscriber { Throws = new InvalidOperationException("model busy") };
+        var injector = new RecordingInjector();
+        var reasons = new List<string>();
+        var pipeline = new DictationPipeline(
+            transcriber, injector, reportDegraded: reasons.Add);
+
+        await pipeline.RunAsync(Audio());
+
+        var reason = Assert.Single(reasons);
+        Assert.Contains("Transcription", reason);
+        Assert.Contains("model busy", reason);
+    }
+
+    [Fact]
+    public async Task A_cloud_failure_recovered_by_the_local_fallback_still_reports_the_cloud_reason()
+    {
+        // Even when the local fallback saves the dictation, the cloud failure is
+        // why the user saw a degraded (local) result — so it's worth a log line.
+        var online = new FakeTranscriber { Throws = new HttpRequestException("no network") };
+        var injector = new RecordingInjector();
+        var reasons = new List<string>();
+        var pipeline = new DictationPipeline(
+            online,
+            injector,
+            transcribeFallback: (_, _) => Task.FromResult("lokal"),
+            reportDegraded: reasons.Add);
+
+        var outcome = await pipeline.RunAsync(Audio());
+
+        Assert.Equal(DictationOutcome.TranscribedOffline, outcome);
+        var reason = Assert.Single(reasons);
+        Assert.Contains("fallback", reason);
+        Assert.Contains("no network", reason);
+    }
+
+    [Fact]
+    public async Task A_clean_cancellation_reports_no_degradation()
+    {
+        // Cancel is a deliberate abort, not a failure — it must not pollute the log.
+        var transcriber = new FakeTranscriber { Throws = new OperationCanceledException() };
+        var injector = new RecordingInjector();
+        var reasons = new List<string>();
+        var pipeline = new DictationPipeline(transcriber, injector, reportDegraded: reasons.Add);
+
+        await pipeline.RunAsync(Audio());
+
+        Assert.Empty(reasons);
+    }
+
+    [Fact]
+    public async Task A_successful_dictation_reports_no_degradation()
+    {
+        var transcriber = new FakeTranscriber { Text = "hallo welt" };
+        var injector = new RecordingInjector();
+        var reasons = new List<string>();
+        var pipeline = new DictationPipeline(transcriber, injector, reportDegraded: reasons.Add);
+
+        await pipeline.RunAsync(Audio());
+
+        Assert.Empty(reasons);
+    }
+
     // --- hand-rolled fakes over the pipeline's seams ---
 
     [Fact]

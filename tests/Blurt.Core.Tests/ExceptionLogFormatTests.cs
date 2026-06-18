@@ -59,4 +59,24 @@ public class ExceptionLogFormatTests
             Assert.Contains(nameof(The_stack_trace_is_kept_when_present), summary);
         }
     }
+
+    [Fact]
+    public void The_stack_trace_is_omitted_when_excluded()
+    {
+        // A degraded-but-recovered notice (refiner offline, transcription retried)
+        // wants a one-line reason in the rolling log, not a full multi-line stack —
+        // the type and message say enough. Type + message stay; the stack is dropped.
+        try
+        {
+            throw new InvalidOperationException("thrown");
+        }
+        catch (Exception e)
+        {
+            var summary = ExceptionLogFormat.Summarize(e, includeStackTrace: false);
+
+            Assert.Contains("System.InvalidOperationException", summary);
+            Assert.Contains("thrown", summary);
+            Assert.DoesNotContain(nameof(The_stack_trace_is_omitted_when_excluded), summary);
+        }
+    }
 }
