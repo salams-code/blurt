@@ -23,3 +23,7 @@ Thumbs.db
 # Security audit reports: local-only — they enumerate unfixed weaknesses with
 # file:line detail; publishing them before fixes ship would be a disclosure risk.
 .scratch/blurt/security-audit/
+
+# Traffic snapshot tool + its accumulated history: local-only, run "ab und zu"
+# to see current GitHub traffic/downloads and keep a record past the 14-day window.
+.scratch/blurt/traffic/
