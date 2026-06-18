@@ -576,11 +576,18 @@ internal sealed class TrayApplicationContext : ApplicationContext
             // URL/model/provider/key change takes effect without an app restart. A
             // missing key still yields a refiner — the pipeline falls back to raw
             // text on the resulting auth failure, so the mode at least inserts the
-            // transcript. RefinerAuth gates the key by provider (issue 17): OpenAI
-            // sends the stored key, a Local/Ollama endpoint sends none while the key
-            // stays stored (it's never deleted on a provider switch).
+            // transcript. RefinerAuth gates the key by provider (issue 17) and by
+            // host (security finding F1): OpenAI sends the stored key, a Local/Ollama
+            // endpoint sends none, and even for OpenAI the key only travels to
+            // OpenAI's own host, loopback, or a host the user explicitly trusted —
+            // so a tricked/tampered base URL can't exfiltrate it. The key stays
+            // stored regardless (it's never deleted on a provider switch).
             var config = _settings.Load();
-            var apiKey = RefinerAuth.KeyToSend(config.RefinementProvider, _settings.LoadApiKey());
+            var apiKey = RefinerAuth.KeyToSend(
+                config.RefinementProvider,
+                _settings.LoadApiKey(),
+                config.RefinementBaseUrl,
+                config.TrustedKeyHost);
             var refiner = new OpenAiCompatibleRefiner(
                 _httpClient, config.RefinementBaseUrl, config.RefinementModel, apiKey);
 
