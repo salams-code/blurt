@@ -19,3 +19,7 @@ Thumbs.db
 # Verification screenshots: local-only — they capture machine-specific paths
 # (e.g. %APPDATA% with a real username) and don't belong in a public repo.
 .scratch/blurt/screenshots/*.png
+
+# Security audit reports: local-only — they enumerate unfixed weaknesses with
+# file:line detail; publishing them before fixes ship would be a disclosure risk.
+.scratch/blurt/security-audit/
