@@ -48,7 +48,10 @@ internal sealed class WinFormsClipboard : IClipboard
     }
 
     public void SetText(string text)
-        => Clipboard.SetDataObject(text, copy: true);
+        // F16: tag the transcript so Windows keeps it out of clipboard history and
+        // cloud sync. The text format is still present, so paste at the cursor is
+        // unchanged; only the OS history/monitor persistence is suppressed.
+        => Clipboard.SetDataObject(ClipboardPrivacy.TextExcludedFromHistory(text), copy: true);
 
     public void Restore(object? snapshot)
     {

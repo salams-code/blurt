@@ -1,0 +1,11 @@
+<Project>
+
+  <PropertyGroup>
+    <!-- Supply-chain hardening (security finding F12): generate and honour a
+         packages.lock.json per project, so restores are reproducible and a
+         transitive dependency can't silently float to a different (possibly
+         vulnerable) build. CI can enforce it by restoring in locked mode. -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  </PropertyGroup>
+
+</Project>

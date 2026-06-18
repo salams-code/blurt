@@ -79,6 +79,23 @@ public static class SettingsValidation
             errors.Add(
                 $"Refinement base URL is not a valid http(s) address: " +
                 $"\"{config.RefinementBaseUrl}\".");
+            return;
+        }
+
+        // F4: the OpenAi provider attaches the stored API key as a Bearer header.
+        // Over plain http to a remote host that key (and every transcript) travel
+        // in clear text, readable by any on-path attacker. Require https — except
+        // on loopback, which is never exposed on the wire, so a locally-hosted
+        // authenticated gateway stays usable. The Local provider sends no key, so
+        // it is unaffected.
+        if (config.RefinementProvider == RefinementProvider.OpenAi
+            && uri.Scheme == Uri.UriSchemeHttp
+            && !uri.IsLoopback)
+        {
+            errors.Add(
+                "Refinement base URL must use https for the OpenAI provider: over " +
+                "plain http your API key would be sent in clear text. Use https, a " +
+                "loopback address, or the local provider (which sends no key).");
         }
     }
 }

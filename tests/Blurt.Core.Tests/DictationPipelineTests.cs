@@ -461,6 +461,29 @@ public class DictationPipelineTests
         Assert.False(injector.WasCalled);
     }
 
+    [Fact]
+    public async Task Untrusted_refiner_output_is_sanitised_before_it_reaches_the_clipboard_and_history()
+    {
+        // Security F2: a malicious/compromised refiner returns text carrying a
+        // terminal escape and a trailing newline. Both must be neutralised before
+        // the text hits the clipboard (paste) and the recovery history.
+        var esc = (char)0x1b;
+        var transcriber = new FakeTranscriber { Text = "hallo" };
+        var injector = new RecordingInjector();
+        string? recorded = null;
+        var pipeline = new DictationPipeline(
+            transcriber,
+            injector,
+            refine: (_, _) => Task.FromResult($"echo hi{esc}\nrm -rf ~\n"),
+            onResult: text => recorded = text);
+
+        var outcome = await pipeline.RunAsync(Audio());
+
+        Assert.Equal("echo hi\nrm -rf ~", injector.InjectedText);
+        Assert.Equal("echo hi\nrm -rf ~", recorded);
+        Assert.Equal(DictationOutcome.Injected, outcome);
+    }
+
     private static Stream Audio() => new MemoryStream(new byte[] { 1, 2, 3 });
 
     private sealed class FakeTranscriber : ITranscriber

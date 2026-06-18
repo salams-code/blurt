@@ -1,6 +1,6 @@
 using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Net.Http.Json;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Blurt.Core;
@@ -53,9 +53,19 @@ public sealed class OpenAiWhisper : ITranscriber
         using var response = await _http.SendAsync(request, ct);
         response.EnsureSuccessStatusCode();
 
-        var body = await response.Content.ReadFromJsonAsync<TranscriptionResponse>(ct);
+        // F14: read through a hard byte cap rather than buffering an unbounded body.
+        using var stream = await response.Content.ReadAsStreamAsync(ct);
+        var json = await HttpResponseLimit.ReadAsStringAsync(stream, HttpResponseLimit.DefaultMaxBytes, ct);
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return string.Empty;
+        }
+
+        var body = JsonSerializer.Deserialize<TranscriptionResponse>(json, WireJson);
         return body?.Text ?? string.Empty;
     }
+
+    private static readonly JsonSerializerOptions WireJson = new(JsonSerializerDefaults.Web);
 
     // The Whisper transcription wire shape — only the field Blurt reads.
     private sealed record TranscriptionResponse(

@@ -190,6 +190,14 @@ public sealed class DictationPipeline
             return DictationOutcome.Cancelled;
         }
 
+        // Security (F2): the final text — raw transcript or untrusted refiner
+        // output — is about to hit the clipboard and be pasted at the cursor.
+        // Strip terminal-control characters and a trailing newline first so a
+        // crafted refinement can't turn the paste into command execution in a
+        // focused shell. Sanitised once here, so both the recovery history below
+        // and the injection see the cleaned text.
+        text = PasteSanitizer.Sanitize(text);
+
         // Report the final text — what is about to go to the cursor — to the
         // optional sink (issue 26: the tray's recent-dictations history). Also on
         // a blocked paste below: the clipboard copy is volatile, the history is

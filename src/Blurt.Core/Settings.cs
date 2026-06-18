@@ -117,6 +117,18 @@ public sealed record BlurtConfig
     public string RefinementModel { get; init; } = "gpt-4o-mini";
 
     /// <summary>
+    /// A non-OpenAI host the user has explicitly confirmed may receive the API key
+    /// (security finding F1) — e.g. an authenticated gateway like OpenRouter or a
+    /// self-hosted proxy. With the <see cref="RefinementProvider.OpenAi"/> provider
+    /// the key is sent only to OpenAI's own host, a loopback address, or this host;
+    /// any other base URL (a tricked "faster proxy" or a tampered config.json) gets
+    /// no key, so the credential can't be silently exfiltrated. Empty by default —
+    /// until the user confirms a custom host, the key never leaves for a stranger.
+    /// Stored as the bare host name (no scheme/port).
+    /// </summary>
+    public string TrustedKeyHost { get; init; } = "";
+
+    /// <summary>
     /// Per-provider endpoint memory (issue 24): each provider's last base URL +
     /// model, so switching providers in Settings swaps fields instead of leaving
     /// the other provider's values behind, and switching back restores edits.
@@ -248,6 +260,7 @@ public sealed record BlurtConfig
             && RefinementProvider == other.RefinementProvider
             && RefinementBaseUrl == other.RefinementBaseUrl
             && RefinementModel == other.RefinementModel
+            && TrustedKeyHost == other.TrustedKeyHost
             && FixPrompt == other.FixPrompt
             && EnglishPrompt == other.EnglishPrompt
             && BulletsPrompt == other.BulletsPrompt
@@ -274,6 +287,7 @@ public sealed record BlurtConfig
         hash.Add(RefinementProvider);
         hash.Add(RefinementBaseUrl);
         hash.Add(RefinementModel);
+        hash.Add(TrustedKeyHost);
         hash.Add(FixPrompt);
         hash.Add(EnglishPrompt);
         hash.Add(BulletsPrompt);

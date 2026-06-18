@@ -498,11 +498,40 @@ internal partial class SettingsWindow : Window
         }
 
         HideErrors();
+
+        // F1: if the OpenAi provider would send the key to a custom host (not
+        // OpenAI, not loopback) the user hasn't trusted yet, confirm once before
+        // letting the credential travel there. Only matters when a key exists
+        // (stored or newly typed) — otherwise nothing would be sent. On "Yes" the
+        // host is remembered as trusted; on "No" it isn't, so RefinerAuth withholds
+        // the key at runtime and refinement falls back to the raw transcript.
+        var typedKey = ApiKeyBox.Password;
+        var keyPresent = _hadApiKey || (!string.IsNullOrEmpty(typedKey) && typedKey != ApiKeyPlaceholder);
+        var untrustedHost = RefinerAuth.UntrustedKeyHost(
+            config.RefinementProvider, config.RefinementBaseUrl, config.TrustedKeyHost);
+        if (keyPresent && untrustedHost is not null)
+        {
+            var answer = System.Windows.MessageBox.Show(
+                this,
+                $"Blurt is about to send your API key to \"{untrustedHost}\", which is not OpenAI.\n\n" +
+                "Only allow this if you trust that host (e.g. OpenRouter or your own gateway). " +
+                "Choose No to save without sending your key there — refinement then falls back to " +
+                "the raw transcript.\n\n" +
+                $"Send your API key to \"{untrustedHost}\"?",
+                "Send API key to a custom host?",
+                System.Windows.MessageBoxButton.YesNo,
+                System.Windows.MessageBoxImage.Warning);
+
+            if (answer == System.Windows.MessageBoxResult.Yes)
+            {
+                config = config with { TrustedKeyHost = untrustedHost };
+            }
+        }
+
         _store.Save(config);
 
         // Only write the key when the user typed a real new value. The placeholder
         // (or blank, when none was stored) means "leave the stored key alone".
-        var typedKey = ApiKeyBox.Password;
         if (!string.IsNullOrEmpty(typedKey) && typedKey != ApiKeyPlaceholder)
         {
             _store.SaveApiKey(typedKey);

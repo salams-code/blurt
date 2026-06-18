@@ -40,8 +40,9 @@ internal static class Program
         catch (Exception ex)
         {
             // Anything escaping startup or the message loop: record it, then let it
-            // surface (rethrow) rather than vanish.
-            log.Write($"FATAL (Main): {ex}");
+            // surface (rethrow) rather than vanish. F18: log a curated summary, not
+            // the raw exception, so the plaintext log never dumps unbounded content.
+            log.Write($"FATAL (Main): {ExceptionLogFormat.Summarize(ex)}");
             throw;
         }
     }
@@ -60,19 +61,23 @@ internal static class Program
         var version = typeof(Program).Assembly.GetName().Version?.ToString() ?? "?";
         log.Write($"=== {AppInfo.Name} {version} started (pid {Environment.ProcessId}) ===");
 
+        // F18: every sink logs a curated summary (type + capped message + stack)
+        // rather than the raw exception's full ToString(), so a message can't dump
+        // unbounded/sensitive content into the plaintext log.
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
-            log.Write($"FATAL (AppDomain, terminating={e.IsTerminating}): {e.ExceptionObject}");
+            log.Write($"FATAL (AppDomain, terminating={e.IsTerminating}): " +
+                      $"{(e.ExceptionObject as Exception is { } ax ? ExceptionLogFormat.Summarize(ax) : e.ExceptionObject)}");
 
         // CatchException makes WinForms raise ThreadException for UI-thread faults
         // (instead of its own dialog), so we log them; the app then keeps running,
         // matching the design's fail-soft intent.
         Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
         Application.ThreadException += (_, e) =>
-            log.Write($"ERROR (UI thread): {e.Exception}");
+            log.Write($"ERROR (UI thread): {ExceptionLogFormat.Summarize(e.Exception)}");
 
         TaskScheduler.UnobservedTaskException += (_, e) =>
         {
-            log.Write($"ERROR (unobserved task): {e.Exception}");
+            log.Write($"ERROR (unobserved task): {ExceptionLogFormat.Summarize(e.Exception)}");
             e.SetObserved();
         };
 

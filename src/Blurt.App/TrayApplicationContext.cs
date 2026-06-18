@@ -53,7 +53,12 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly SettingsStore _settings = new(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         new DpapiSecretProtector());
-    private readonly HttpClient _httpClient = new();
+    // Bounded so a malicious/compromised provider can't exhaust memory with a giant
+    // buffered response (security finding F13). The primary guard is the per-call
+    // byte cap in Refiner/OpenAiWhisper (HttpResponseLimit); this caps any other
+    // buffered read on the shared client too. Timeout stays at the 100s default —
+    // Esc-cancel propagates a token that aborts a slow request sooner.
+    private readonly HttpClient _httpClient = new() { MaxResponseContentBufferSize = 16 * 1024 * 1024 };
 
     // Recent-dictations history (issue 26): the last few final texts, newest
     // first, RAM-only — recovers a paste that landed in the void. Surfaced as a
@@ -576,11 +581,18 @@ internal sealed class TrayApplicationContext : ApplicationContext
             // URL/model/provider/key change takes effect without an app restart. A
             // missing key still yields a refiner — the pipeline falls back to raw
             // text on the resulting auth failure, so the mode at least inserts the
-            // transcript. RefinerAuth gates the key by provider (issue 17): OpenAI
-            // sends the stored key, a Local/Ollama endpoint sends none while the key
-            // stays stored (it's never deleted on a provider switch).
+            // transcript. RefinerAuth gates the key by provider (issue 17) and by
+            // host (security finding F1): OpenAI sends the stored key, a Local/Ollama
+            // endpoint sends none, and even for OpenAI the key only travels to
+            // OpenAI's own host, loopback, or a host the user explicitly trusted —
+            // so a tricked/tampered base URL can't exfiltrate it. The key stays
+            // stored regardless (it's never deleted on a provider switch).
             var config = _settings.Load();
-            var apiKey = RefinerAuth.KeyToSend(config.RefinementProvider, _settings.LoadApiKey());
+            var apiKey = RefinerAuth.KeyToSend(
+                config.RefinementProvider,
+                _settings.LoadApiKey(),
+                config.RefinementBaseUrl,
+                config.TrustedKeyHost);
             var refiner = new OpenAiCompatibleRefiner(
                 _httpClient, config.RefinementBaseUrl, config.RefinementModel, apiKey);
 
@@ -1025,7 +1037,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         try
         {
-            Clipboard.SetText(text);
+            // F23: a recovery copy of a (possibly provider-influenced) dictation —
+            // keep it out of Windows clipboard history / cloud sync like the paste path.
+            Clipboard.SetDataObject(ClipboardPrivacy.TextExcludedFromHistory(text), copy: true);
         }
         catch
         {
@@ -1149,7 +1163,15 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             if (Environment.ProcessPath is { } exe)
             {
-                System.Diagnostics.Process.Start(exe);
+                // F22: launch with ShellExecute off and an explicit working directory
+                // (the exe's own folder), so the relaunched process doesn't inherit —
+                // and then probe for native DLLs in — whatever directory the parent
+                // happened to be started from.
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe)
+                {
+                    UseShellExecute = false,
+                    WorkingDirectory = System.IO.Path.GetDirectoryName(exe) ?? string.Empty,
+                });
             }
         }
         catch (Exception ex)
