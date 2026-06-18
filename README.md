@@ -8,9 +8,10 @@ Blurt lives in the system tray, stays out of your way, and is built around one
 question that most dictation tools blur over: **what actually leaves your
 machine?**
 
-> Status: early, usable, and now open source. Native Windows, .NET 8 / C#.
-> Primary dictation language is German (the multilingual Whisper model handles
-> others too).
+> Status: **experimental** — early, usable, and now open source. Native Windows,
+> .NET 8 / C#. Provided as-is: no warranty, no support guarantee, use at your own
+> risk. Primary dictation language is German (the multilingual Whisper model
+> handles others too).
 
 ---
 
@@ -280,11 +281,12 @@ emoji/tone modes, user accounts, a backend server, code signing, an installer.
 ## Background & credits
 
 Blurt is a ground-up Windows reimplementation inspired by **Blitztext**, the
-macOS dictation app by Magnus
+macOS dictation app by Christoph Magnussen
 ([cmagnussen/blitztext-app](https://github.com/cmagnussen/blitztext-app),
 Swift/SwiftUI + WhisperKit). Blitztext is Apple-only, so none of its code runs
 on Windows — only the *concept* carried over, and this is a new, native-Windows
-codebase with its own architecture. Credit to Magnus for the original idea.
+codebase with its own architecture. Credit to Christoph Magnussen for the
+original idea.
 
 **On a Mac?** Use [Blitztext](https://github.com/cmagnussen/blitztext-app) — it's
 the original and the natural fit there. Blurt exists to bring the same workflow
