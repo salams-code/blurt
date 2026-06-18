@@ -202,6 +202,39 @@ Everything is in the **Settings** window (right-click the tray icon → Settings
 - `%APPDATA%\Blurt\logs\blurt.log` — a small, self-rotating diagnostic log (handy
   if something misbehaves; capped in size so it never grows unbounded).
 
+## Security review
+
+A dictation tool sits in a sensitive spot: it holds your **API key**, sees every
+word you dictate, and listens to your microphone — so "what leaves your machine?"
+only means something if the machine side is sound. Before going public, Blurt's
+attack surface — credential handling, network egress and TLS, clipboard and text
+injection, the global keyboard hook, supply chain and native library loading, and
+local files/logging — was put through a **read-only, AI-assisted audit** using
+Claude Code's multi-agent workflow (more than 70 sub-agents, 77 in all, that
+mapped the surface, hunted for issues, then adversarially cross-checked each
+finding). It only read the code and changed nothing.
+
+It surfaced **no critical and no high-severity issues**, and found no realistic
+path to code execution, credential theft, or silent data exfiltration in normal
+use. Overall risk came out **medium**, driven by a handful of low/medium hardening
+gaps — and that reassuring half does not stand alone: some hardening is still
+**ongoing**, and a few residual risks are simply **inherent** to any single-user
+desktop app — a process already running as your Windows user can read whatever
+your user can read, Blurt included. Those are documented and accepted, not "fixed."
+
+The practically fixable gaps are hardened in this same change-set. At a category
+level: tighter rules on where the API key may be sent and enforcing HTTPS for the
+key-bearing endpoint, sanitising injected text, bounding network response sizes,
+crash-resistant config loading, recording less in the crash log, pinning
+dependencies to a locked source, and keeping dictation text out of the OS
+clipboard history.
+
+This kind of automated review **complements but does not replace** a professional
+human security audit — treat it as diligence, not a guarantee. Blurt stays
+**experimental and is provided as-is**, with no warranty. The detailed findings
+are kept private and this note stays general on purpose; if you think you've found
+a security problem, please report it privately rather than opening a public issue.
+
 ## How it works (under the hood)
 
 ```
