@@ -218,6 +218,75 @@ public class SettingsStoreTests
     }
 
     [Fact]
+    public void A_malformed_config_file_loads_the_defaults_instead_of_crashing()
+    {
+        // F19: a half-written config.json (a crash/power-loss mid-save) or a
+        // tampered file is invalid JSON. Load must fall back to defaults rather
+        // than throw an uncaught JsonException that wedges every startup.
+        var root = TempRoot();
+        try
+        {
+            var store = new SettingsStore(root, new FlipProtector());
+            Directory.CreateDirectory(Path.Combine(root, "Blurt"));
+            File.WriteAllText(store.ConfigPath, "{ \"Transcription\": \"Local\", ");   // truncated
+
+            var config = store.Load();
+
+            Assert.Equal(BlurtConfig.Default, config);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void A_config_with_an_unknown_enum_value_loads_the_defaults_instead_of_crashing()
+    {
+        // F20: an out-of-range enum string would otherwise throw JsonException from
+        // the JsonStringEnumConverter. Fall back to defaults instead of crashing.
+        var root = TempRoot();
+        try
+        {
+            var store = new SettingsStore(root, new FlipProtector());
+            Directory.CreateDirectory(Path.Combine(root, "Blurt"));
+            File.WriteAllText(store.ConfigPath, """{ "Transcription": "TeleportMode" }""");
+
+            var config = store.Load();
+
+            Assert.Equal(BlurtConfig.Default, config);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Save_writes_atomically_and_leaves_no_temp_file_behind()
+    {
+        // F19: the write goes via a temp file + move so a crash can't leave a
+        // half-written config.json. After a successful save only the real file
+        // remains — and a second save overwrites it cleanly.
+        var root = TempRoot();
+        try
+        {
+            var store = new SettingsStore(root, new FlipProtector());
+
+            store.Save(BlurtConfig.Default);
+            store.Save(BlurtConfig.Default with { SoundEnabled = true });
+
+            Assert.True(File.Exists(store.ConfigPath));
+            Assert.False(File.Exists(store.ConfigPath + ".tmp"));
+            Assert.True(store.Load().SoundEnabled);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public void Onboarding_completed_flag_round_trips_both_ways()
     {
         var root = TempRoot();

@@ -45,7 +45,18 @@ public sealed class SettingsStore
             return BlurtConfig.Default;
 
         var json = File.ReadAllText(ConfigPath);
-        return JsonSerializer.Deserialize<BlurtConfig>(json, JsonOptions) ?? BlurtConfig.Default;
+        try
+        {
+            return JsonSerializer.Deserialize<BlurtConfig>(json, JsonOptions) ?? BlurtConfig.Default;
+        }
+        catch (JsonException)
+        {
+            // F19/F20: a malformed config.json (a crash/power-loss mid-save, or a
+            // tampered file) or an out-of-range enum string would otherwise throw an
+            // uncaught JsonException and crash every startup. Fall back to defaults
+            // so the app still launches — the user can re-save from Settings.
+            return BlurtConfig.Default;
+        }
     }
 
     /// <summary>Writes <paramref name="config"/> as indented JSON, creating the directory if needed.</summary>
@@ -53,7 +64,13 @@ public sealed class SettingsStore
     {
         Directory.CreateDirectory(_directory);
         var json = JsonSerializer.Serialize(config, JsonOptions);
-        File.WriteAllText(ConfigPath, json);
+
+        // F19: write atomically — a crash/power-loss partway through a direct write
+        // would leave a truncated config.json that fails to parse on next launch.
+        // Write to a temp file, then move it over the target in one step.
+        var temp = ConfigPath + ".tmp";
+        File.WriteAllText(temp, json);
+        File.Move(temp, ConfigPath, overwrite: true);
     }
 
     /// <summary>
