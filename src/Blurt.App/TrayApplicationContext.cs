@@ -1161,7 +1161,15 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             if (Environment.ProcessPath is { } exe)
             {
-                System.Diagnostics.Process.Start(exe);
+                // F22: launch with ShellExecute off and an explicit working directory
+                // (the exe's own folder), so the relaunched process doesn't inherit —
+                // and then probe for native DLLs in — whatever directory the parent
+                // happened to be started from.
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe)
+                {
+                    UseShellExecute = false,
+                    WorkingDirectory = System.IO.Path.GetDirectoryName(exe) ?? string.Empty,
+                });
             }
         }
         catch (Exception ex)
