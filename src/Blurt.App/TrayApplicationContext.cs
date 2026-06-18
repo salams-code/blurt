@@ -1037,7 +1037,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         try
         {
-            Clipboard.SetText(text);
+            // F23: a recovery copy of a (possibly provider-influenced) dictation —
+            // keep it out of Windows clipboard history / cloud sync like the paste path.
+            Clipboard.SetDataObject(ClipboardPrivacy.TextExcludedFromHistory(text), copy: true);
         }
         catch
         {
