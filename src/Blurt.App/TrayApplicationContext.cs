@@ -53,7 +53,12 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly SettingsStore _settings = new(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         new DpapiSecretProtector());
-    private readonly HttpClient _httpClient = new();
+    // Bounded so a malicious/compromised provider can't exhaust memory with a giant
+    // buffered response (security finding F13). The primary guard is the per-call
+    // byte cap in Refiner/OpenAiWhisper (HttpResponseLimit); this caps any other
+    // buffered read on the shared client too. Timeout stays at the 100s default —
+    // Esc-cancel propagates a token that aborts a slow request sooner.
+    private readonly HttpClient _httpClient = new() { MaxResponseContentBufferSize = 16 * 1024 * 1024 };
 
     // Recent-dictations history (issue 26): the last few final texts, newest
     // first, RAM-only — recovers a paste that landed in the void. Surfaced as a

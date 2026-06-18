@@ -1,6 +1,7 @@
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Blurt.Core;
@@ -69,13 +70,28 @@ public sealed class OpenAiCompatibleRefiner : IRefiner
         using var response = await _http.SendAsync(request, ct);
         response.EnsureSuccessStatusCode();
 
-        var body = await response.Content.ReadFromJsonAsync<ChatCompletionResponse>(ct);
+        // F5: read the body through a hard byte cap instead of ReadFromJsonAsync
+        // (which would buffer an unbounded body in full). A provider returning a
+        // huge payload then fails fast rather than exhausting memory or producing a
+        // multi-MB paste — the pipeline falls back to the raw transcript.
+        using var stream = await response.Content.ReadAsStreamAsync(ct);
+        var json = await HttpResponseLimit.ReadAsStringAsync(stream, HttpResponseLimit.DefaultMaxBytes, ct);
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return string.Empty;
+        }
+
+        var body = JsonSerializer.Deserialize<ChatCompletionResponse>(json, WireJson);
         var content = body?.Choices is { Count: > 0 } choices
             ? choices[0].Message?.Content
             : null;
 
         return content ?? string.Empty;
     }
+
+    // Web defaults match the OpenAI wire shape (and the prior ReadFromJsonAsync
+    // behaviour) while the explicit JsonPropertyName attributes pin the field names.
+    private static readonly JsonSerializerOptions WireJson = new(JsonSerializerDefaults.Web);
 
     // OpenAI Chat Completions wire shapes — only the fields Blurt sends/reads.
     private sealed record ChatCompletionRequest(
